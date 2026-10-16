@@ -139,3 +139,37 @@ export function listSessions(cwd: string): SessionInfo[] {
     })
     .sort((a, b) => b.mtimeMs - a.mtimeMs);
 }
+
+export interface SessionSummary extends SessionInfo {
+  msgCount: number;
+  firstPrompt: string;
+}
+
+/** P18: enriched listing for the /sessions picker (most recent first). */
+export function sessionSummaries(cwd: string, limit = 20): SessionSummary[] {
+  return listSessions(cwd).slice(0, limit).map((s) => {
+    let msgCount = 0;
+    let firstPrompt = '';
+    try {
+      const lines = fs.readFileSync(s.path, 'utf8').split('\n').filter((l) => l.trim() !== '');
+      msgCount = lines.length;
+      for (const l of lines) {
+        try {
+          const o = JSON.parse(l) as { type?: string; content?: unknown };
+          if (o.type === 'user' && Array.isArray(o.content)) {
+            const tb = o.content.find((b) => (b as { type?: string }).type === 'text') as { text?: string } | undefined;
+            if (tb?.text !== undefined && tb.text !== '') {
+              firstPrompt = tb.text.replace(/\s+/g, ' ').slice(0, 80);
+              break;
+            }
+          }
+        } catch {
+          // skip malformed line
+        }
+      }
+    } catch {
+      // unreadable transcript
+    }
+    return { ...s, msgCount, firstPrompt };
+  });
+}

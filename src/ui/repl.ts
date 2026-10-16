@@ -38,6 +38,7 @@ function skillsPromptSectionSafe(skills: ReturnType<typeof discoverSkills>): str
 import {
   Transcript,
   listSessions,
+  sessionSummaries,
   newSessionId,
   readTranscript,
   transcriptPathFor,
@@ -582,6 +583,44 @@ export async function runRepl(ctx: CliContext): Promise<void> {
         }
         for (const w of warnings) out.write(c.yellow(`  ⚠ ${w}\n`));
         out.write(successLine(`resumed ${state.messages.length} messages (${new Date(target.mtimeMs).toLocaleString()})\n`));
+        return 'handled';
+      }
+      case '/sessions': {
+        const sums = sessionSummaries(process.cwd());
+        if (sums.length === 0) {
+          out.write(c.dim('no sessions yet for this directory\n'));
+          return 'handled';
+        }
+        out.write(c.bold('recent sessions\n'));
+        sums.forEach((sm, i) => {
+          const when = new Date(sm.mtimeMs).toLocaleString();
+          out.write(c.dim(`  ${String(i + 1).padStart(2)}) `) + `${sm.id.slice(0, 8)}  ${c.dim(when)}  ${String(sm.msgCount)} msgs  ${c.dim(sm.firstPrompt !== '' ? sm.firstPrompt : '(no prompt captured)')}\n`);
+        });
+        if (arg !== '') {
+          const n = Number(arg);
+          if (!Number.isInteger(n) || n < 1 || n > sums.length) {
+            out.write(errorLine(`/sessions: pick 1-${sums.length} (or /resume <id-prefix>)`) + '\n');
+            return 'handled';
+          }
+          const t2 = sums[n - 1];
+          if (t2 === undefined) {
+            out.write(errorLine(`/sessions: pick 1-${sums.length}`) + '\n');
+            return 'handled';
+          }
+          const { messages, warnings, sessionId } = readTranscript(t2.path);
+          state.messages = messages;
+          state.sessionId = sessionId ?? t2.id;
+          state.transcript = new Transcript(transcriptPathFor(process.cwd(), state.sessionId), state.sessionId, ctx.version);
+          checkpointer = null;
+          state.totalUsage = { ...EMPTY_USAGE };
+          for (const m of state.messages) {
+            if (m.usage !== undefined && m.usage.estimated === false) state.totalUsage = addUsage(state.totalUsage, m.usage);
+          }
+          for (const w of warnings) out.write(c.yellow(`  ⚠ ${w}\n`));
+          out.write(successLine(`resumed session ${t2.id.slice(0, 8)} (${state.messages.length} messages)\n`));
+        } else {
+          out.write(c.dim('  resume one: /sessions <n>\n'));
+        }
         return 'handled';
       }
       case '/continue':
