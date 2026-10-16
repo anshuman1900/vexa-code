@@ -75,7 +75,8 @@
 - [x] P15 Memory/skills/hooks — ✅ DONE (auto-memory dir keyed by git root + MEMORY.md always-loaded w/ caps; SKILL.md two-level loading + prompt section 13; custom slash commands .vexa/commands/*.md w/ $ARGUMENTS; hooks PreToolUse/PostToolUse/UserPromptSubmit/SessionStart/Stop — exit-2 block + JSON decision contract; 6/6 tests)
 - [x] P16 WebSearch+checkpoints — ✅ DONE (WebSearch tool: Tavily POST + Brave GET, domain filters, disabled until config+key; checkpoints: shadow-copy checkpointer w/ JSONL manifest, Edit/Write call ctx.checkpoint(prior), /rewind [n|list], reset on /clear+/resume; 3/3 tests)
 - [x] P17 Headless — ✅ DONE (`vexa -p "prompt"`: full toolset+Task, VEXA.md/memory/skills in prompt, transcript persisted, read-only auto-allow/writes denied, stdin prompt, VEXA_OUTPUT_FORMAT=json result envelope, exit codes 0/1/2; LIVE-VERIFIED: HEADLESS_OK roundtrip + Read(package.json)→"vexa-code")
-- [~] Stage IV remaining: P18 sessions picker → P19 evals → P20 perf
+- [x] P18 Sessions picker — ✅ DONE (/sessions: numbered listing id/time/msgs/first-prompt preview; /sessions <n> resumes in place; sessionSummaries() data layer; 3/3 tests)
+- [~] Stage IV remaining: P19 evals → P20 perf
 - [x] P0.1 GitHub harvest — ✅ DONE (3 repos, 2 prompt generations, 16 tool schemas, 1,884-file deobfuscated source)
 - [x] P0.2 source study — ✅ DONE (4 docs: agent loop/provider, tools/permissions/hooks, context/MCP/extensibility + P0.1 harvest; all cited to source)
 - [x] P0.3 Spec doc — ✅ DONE (docs/SPEC.md: 640 lines, architecture + P1–P26 specs + OpenAI adaptation table + data structures + prompt plan + open decisions)
