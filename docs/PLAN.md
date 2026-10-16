@@ -83,7 +83,10 @@
 - [x] P23 Tool rendering — ✅ DONE (collapsible <details> tool cards w/ smart summaries + real +/- Edit diffs + error state; tool_use events in bridge; commit 6e0ce14; live)
 - [x] P24 Packaging — ✅ DONE (sync-resources.mjs: esbuild single-file CLI 198KB + node.exe as Tauri resources; resource-dir sidecar resolution w/ dev fallback; NSIS installer 'Vexa Code_0.1.0_x64-setup.exe' 26.6MiB built + release exe live-verified w/ packaged spawn; commit f488419)
 - [x] Stage V — ✅ COMPLETE
-- [~] Stage VI: P25 hardening → P26 v1.0 release
+- [x] P25 Hardening — ✅ DONE (global unhandledRejection/uncaughtException guards, accurate help text, full README, ce3eaad)
+- [x] P26 v1.0 release — ✅ DONE (v1.0.0 across package.json/Cargo/tauri.conf; installer Vexa Code_1.0.0_x64-setup.exe 26.6MiB rebuilt; tag v1.0.0 pushed; GitHub Release live w/ installer asset — verified via gh release view; c5f4dcf)
+- [x] Stage VI — ✅ COMPLETE
+- [x] **ALL 26 PHASES / 7 STAGES COMPLETE — v1.0.0 SHIPPED**
 - [x] P0.1 GitHub harvest — ✅ DONE (3 repos, 2 prompt generations, 16 tool schemas, 1,884-file deobfuscated source)
 - [x] P0.2 source study — ✅ DONE (4 docs: agent loop/provider, tools/permissions/hooks, context/MCP/extensibility + P0.1 harvest; all cited to source)
 - [x] P0.3 Spec doc — ✅ DONE (docs/SPEC.md: 640 lines, architecture + P1–P26 specs + OpenAI adaptation table + data structures + prompt plan + open decisions)
