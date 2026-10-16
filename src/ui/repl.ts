@@ -13,6 +13,9 @@ import { resolveApiKey } from '../config/profiles.js';
 import type { VexaMessage, Usage } from '../types.js';
 import { EMPTY_USAGE, addUsage } from '../types.js';
 import { buildSystemPrompt } from '../engine/prompt.js';
+import { runAgentTurn } from '../engine/queryLoop.js';
+import { getAllBaseTools } from '../tools/registry.js';
+import type { Tool, ToolContext } from '../tools/types.js';
 import { computeContextState } from '../engine/contextTracker.js';
 import {
   Transcript,
@@ -21,12 +24,20 @@ import {
   readTranscript,
   transcriptPathFor,
 } from '../sessions/transcript.js';
-import { c, usageLine, errorLine, successLine, clearLine } from './render.js';
+import { c, usageLine, errorLine, successLine, clearLine, toolUseLine, toolResultLine, summarizeToolInput } from './render.js';
 import { Spinner } from './spinner.js';
 import type { CliContext } from '../cli.js';
 import { resolveModelRef, type ResolvedModel } from '../config/profiles.js';
 
 type PermMode = 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions';
+
+/** must-Read-first ledger, shared across the session (LRU cap arrives in P25) */
+const readFileState = new Map<string, { mtimeMs: number }>();
+
+function truncateResult(s: string): string {
+  const one = s.replace(/\n/g, ' ⏎ ');
+  return one.length > 220 ? one.slice(0, 220) + '…' : one;
+}
 const MODE_CYCLE: PermMode[] = ['default', 'acceptEdits', 'plan', 'bypassPermissions'];
 const MODE_LABEL: Record<PermMode, string> = {
   default: '',
@@ -195,6 +206,32 @@ export async function runRepl(ctx: CliContext): Promise<void> {
     const abort = new AbortController();
     let interrupted = false;
 
+    const toolCtx: ToolContext = {
+      abortController: abort,
+      readFileState,
+      cwd: process.cwd(),
+    };
+    const tools: Tool[] = getAllBaseTools().filter((t) => t.isEnabled());
+
+    const askPermission = async (tool: Tool, input: unknown): Promise<boolean> => {
+      if (process.stdin.isTTY !== true) return false; // headless: auto-deny (P17 semantics)
+      // plan mode: read-only tools only (early P12 enforcement)
+      if (state.mode === 'plan' && !tool.isReadOnly) {
+        out.write(c.yellow(`⏸ ${tool.name} blocked in plan mode (read-only only)\n`));
+        return false;
+      }
+      if (state.mode === 'acceptEdits' && (tool.name === 'Edit' || tool.name === 'Write')) return true;
+      rl.pause();
+      out.write(
+        `\n${c.yellow(`⚠ ${tool.name} requests permission`)} ${c.dim(JSON.stringify(input ?? {}).slice(0, 180))}\n`,
+      );
+      const answer: string = await new Promise((resolve) => {
+        rl.question(c.cyan('  allow? (y/n) > '), (a) => resolve(a.trim().toLowerCase()));
+      });
+      rl.resume();
+      return answer === 'y' || answer === 'yes';
+    };
+
     // Esc interrupts the stream, like Claude Code (raw-mode keypress during turn)
     const wasRaw = process.stdin.isRaw === true;
     if (process.stdin.isTTY === true) {
@@ -225,45 +262,53 @@ export async function runRepl(ctx: CliContext): Promise<void> {
     let firstChunk = true;
 
     try {
-      const result = await streamChat(
-        {
-          baseUrl: state.resolved.profile.baseUrl,
-          apiKey: key,
-          model: state.resolved.modelId,
-          headers: state.resolved.profile.headers,
-          messages: [
-            { role: 'system', content: system },
-            ...toWireMessages(state.messages, { supportsVision: state.resolved.profile.supports?.vision === true }),
-          ],
-          tools: undefined, // tools land in P5-P7; the ⏺ grammar is ready for them
-          maxTokens: state.resolved.profile.maxTokens,
-          maxTokensParam: state.resolved.profile.maxTokensParam,
-          temperature: state.resolved.profile.temperature,
-          supports: state.resolved.profile.supports,
-          dropFields: state.resolved.profile.dropFields,
-          signal: abort.signal,
-          label: state.resolved.profileName,
+      const result = await runAgentTurn({
+        baseUrl: state.resolved.profile.baseUrl,
+        apiKey: key,
+        model: state.resolved.modelId,
+        label: state.resolved.profileName,
+        headers: state.resolved.profile.headers,
+        system,
+        messages: state.messages,
+        tools,
+        maxTokens: state.resolved.profile.maxTokens,
+        maxTokensParam: state.resolved.profile.maxTokensParam,
+        temperature: state.resolved.profile.temperature,
+        supports: state.resolved.profile.supports,
+        dropFields: state.resolved.profile.dropFields,
+        maxTurns: ctx.flags.maxTurns ?? 200,
+        toolContext: toolCtx,
+        permissionAsk: askPermission,
+        onTextDelta: (d) => {
+          if (firstChunk) {
+            firstChunk = false;
+            spinner.stop();
+          }
+          process.stdout.write(d);
         },
-        {
-          onTextDelta: (d) => {
-            if (firstChunk) {
-              firstChunk = false;
-              spinner.stop();
-            }
-            process.stdout.write(d);
-          },
-          onReasoningDelta: (d) => {
-            if (firstChunk) {
-              firstChunk = false;
-              spinner.stop();
-            }
-            process.stdout.write(c.dim(d));
-          },
+        onReasoningDelta: (d) => {
+          if (firstChunk) {
+            firstChunk = false;
+            spinner.stop();
+          }
+          process.stdout.write(c.dim(d));
         },
-      );
+        onToolStart: (name, input) => {
+          if (firstChunk) {
+            firstChunk = false;
+            spinner.stop();
+          }
+          out.write('\n' + toolUseLine(name, summarizeToolInput(name, input)));
+        },
+        onToolResult: (name, content, isError) => {
+          out.write(toolResultLine(truncateResult(content), isError) + '\n');
+          void name;
+        },
+        signal: abort.signal,
+      });
 
       spinner.stop();
-      if (result.text !== '' || result.toolCalls.length > 0) out.write('\n');
+      if (result.finalText !== '') out.write('\n');
 
       state.totalUsage = addUsage(state.totalUsage, result.usage);
       state.messages.push({
@@ -271,7 +316,7 @@ export async function runRepl(ctx: CliContext): Promise<void> {
         parentUuid: state.messages.at(-1)?.uuid ?? null,
         timestamp: new Date().toISOString(),
         type: 'assistant',
-        content: [{ type: 'text', text: result.text }],
+        content: [{ type: 'text', text: result.finalText === '' ? (result.finishReason === 'max_turns_reached' ? '[max turns reached]' : '') : result.finalText }],
         model: state.resolved.modelId,
         provider: state.resolved.profileName,
         usage: result.usage,
