@@ -207,6 +207,9 @@ export function runGuiBridge(ctx: CliContext): void {
           accText += delta;
           send({ type: 'assistant_delta', text: delta });
         },
+        onToolStart: (name, input) => {
+          send({ type: 'tool_use', name, input });
+        },
         onToolResult: (name, content, isError) => {
           send({ type: 'tool_result', name, content: String(content).slice(0, 8000), isError: isError === true });
         },

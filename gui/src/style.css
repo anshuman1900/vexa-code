@@ -25,3 +25,16 @@ button.secondary { background: var(--panel); color: var(--text); border: 1px sol
 button.hidden, .hidden { display: none; }
 #permission-bar { position: fixed; bottom: 68px; left: 14px; right: 14px; background: #2f2a1e; border: 1px solid var(--warn); border-radius: 10px; padding: 10px 12px; display: flex; gap: 10px; align-items: center; }
 #permission-text { flex: 1; font-size: 13px; color: var(--warn); word-break: break-word; }
+
+.tool-card { border: 1px solid var(--border); border-radius: 8px; margin: 6px 0; overflow: hidden; font-size: 12.5px; }
+.tool-card > summary { cursor: pointer; list-style: none; padding: 6px 10px; background: var(--panel); color: var(--accent); display: flex; gap: 8px; align-items: center; }
+.tool-card > summary::-webkit-details-marker { display: none; }
+.tool-card > summary .chev { color: var(--dim); }
+.tool-card > summary .tname { font-weight: 600; }
+.tool-card > summary .tsum { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-card .tbody { padding: 6px 10px; background: var(--bg); }
+.tool-card.error > summary { color: var(--err); border-left: 2px solid var(--err); }
+.diff-line { font: 12px/1.5 Consolas, monospace; white-space: pre-wrap; padding: 0 6px; border-radius: 3px; }
+.diff-line.del { background: rgba(247, 118, 142, 0.12); color: #f7768e; }
+.diff-line.add { background: rgba(158, 206, 106, 0.12); color: #9ece6a; }
+.tbody pre.json { margin: 0; font: 12px/1.5 Consolas, monospace; color: var(--dim); white-space: pre-wrap; word-break: break-word; }

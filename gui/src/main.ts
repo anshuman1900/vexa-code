@@ -35,13 +35,47 @@ function addMessage(role: 'user' | 'assistant', text: string): HTMLElement {
   return bubble;
 }
 
-function addToolLine(name: string, detail: string, isError: boolean): void {
-  const t = el('div', `tool${isError ? ' error' : ''}`);
-  const b = el('b'); b.textContent = name;
-  t.append(b, document.createTextNode(' ' + detail.slice(0, 300)));
-  chat.append(t);
-  chat.scrollTop = chat.scrollHeight;
+function toolSummary(name: string, input: Record<string, unknown> | null): string {
+  if (input === null) return '';
+  const keys = ['command', 'file_path', 'pattern', 'url', 'query', 'description', 'path'];
+  for (const k of keys) {
+    const v = input[k];
+    if (typeof v === 'string' && v !== '') return v.replace(/\s+/g, ' ').slice(0, 120);
+  }
+  return '';
 }
+
+function addToolCard(name: string, input: Record<string, unknown> | null, isError: boolean): HTMLElement {
+  const card = el('details', `tool-card${isError ? ' error' : ''}`);
+  const summary = el('summary');
+  const chev = el('span', 'chev'); chev.textContent = '▸';
+  const nm = el('span', 'tname'); nm.textContent = name;
+  const sum = el('span', 'tsum'); sum.textContent = toolSummary(name, input);
+  summary.append(chev, nm, sum);
+  card.append(summary);
+  const body = el('div', 'tbody');
+  if (input !== null && Object.keys(input).length > 0) {
+    if (name === 'Edit' && typeof input['old_string'] === 'string' && typeof input['new_string'] === 'string') {
+      for (const l of (input['old_string'] as string).split('\n')) {
+        const d = el('div', 'diff-line del'); d.textContent = '- ' + l; body.append(d);
+      }
+      for (const l of (input['new_string'] as string).split('\n')) {
+        const d = el('div', 'diff-line add'); d.textContent = '+ ' + l; body.append(d);
+      }
+    } else {
+      const pre = el('pre', 'json');
+      pre.textContent = JSON.stringify(input, null, 2).slice(0, 2000);
+      body.append(pre);
+    }
+  }
+  card.append(body);
+  summary.addEventListener('click', () => { chev.textContent = card.open ? '▾' : '▸'; });
+  chat.append(card);
+  scrollIfSticky();
+  return card;
+}
+
+let pendingCard: HTMLElement | null = null;
 
 const welcome = document.getElementById('welcome') as HTMLElement;
 const newSessionBtn = document.getElementById('new-session') as HTMLButtonElement;
@@ -108,9 +142,18 @@ channel.onmessage = (line: string) => {
       }
       break;
     }
+    case 'tool_use': {
+      welcome.style.display = 'none';
+      pendingCard = addToolCard(String(ev['name'] ?? 'tool'), (ev['input'] ?? null) as Record<string, unknown> | null, false);
+      break;
+    }
     case 'tool_result': {
       welcome.style.display = 'none';
-      addToolLine(String(ev['name'] ?? 'tool'), String(ev['content'] ?? ''), ev['isError'] === true);
+      const card = pendingCard ?? addToolCard(String(ev['name'] ?? 'tool'), null, ev['isError'] === true);
+      pendingCard = null;
+      if (ev['isError'] === true) card.classList.add('error');
+      const sum = card.querySelector('.tsum');
+      if (sum !== null) sum.textContent = String(ev['content'] ?? '').replace(/\s+/g, ' ').slice(0, 120);
       break;
     }
     case 'permission_request': {
