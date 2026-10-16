@@ -13,10 +13,24 @@ import { grepTool } from './filesystem/grep.js';
 import { lsTool } from './filesystem/ls.js';
 import { bashTool } from './bash/bash.js';
 import { bashOutputTool, killShellTool } from './bash/bashOutput.js';
+import { todoTool } from './todo.js';
+import { exitPlanModeTool } from './plan.js';
 
 /** Order matters: stable prefix for provider prefix caching (SPEC A3b). */
 export function getAllBaseTools(): Tool[] {
-  return [readTool, globTool, grepTool, lsTool, editTool, writeTool, bashTool, bashOutputTool, killShellTool];
+  return [
+    readTool,
+    globTool,
+    grepTool,
+    lsTool,
+    editTool,
+    writeTool,
+    bashTool,
+    todoTool,
+    exitPlanModeTool,
+    bashOutputTool,
+    killShellTool,
+  ];
 }
 
 export function getTool(name: string): Tool | undefined {

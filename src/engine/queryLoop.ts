@@ -38,6 +38,10 @@ export interface AgentTurnOptions {
   onToolResult?: (name: string, summary: string, isError: boolean) => void;
   signal?: AbortSignal;
   sleepFn?: (ms: number) => Promise<void>;
+  /** per-turn context attachments (todo reminders etc.) — replaces the previous batch */
+  getAttachments?: () => VexaMessage[];
+  /** autocompact check before each model call; mutates opts.messages on compact */
+  autoCompact?: () => Promise<boolean>;
 }
 
 export interface AgentTurnResult {
@@ -129,6 +133,21 @@ export async function runAgentTurn(opts: AgentTurnOptions): Promise<AgentTurnRes
   let prevFinish = '';
 
   for (let turn = 0; turn < opts.maxTurns; turn++) {
+    // autocompact check (P14) — before building the request
+    if (opts.autoCompact !== undefined) {
+      try {
+        await opts.autoCompact();
+      } catch {
+        // compaction failure is non-fatal; circuit breaker lives in the caller
+      }
+    }
+    // context attachments (todo reminders): replace the previous batch [P0.1 §C2]
+    if (opts.getAttachments !== undefined) {
+      const keep = opts.messages.filter((m) => !m.isMeta || m.content[0]?.type !== 'text' || !m.content[0].text.includes('<system-reminder>'));
+      const atts = opts.getAttachments();
+      opts.messages.length = 0;
+      opts.messages.push(...keep, ...atts);
+    }
     const wire: WireMessage[] = [
       { role: 'system', content: opts.system },
       ...toWireMessages(opts.messages, { supportsVision: opts.supports?.vision === true }),

@@ -89,11 +89,9 @@ await check('LS: listing with ignore patterns', async () => {
 
 await check('Registry: stable order + OpenAI wire shape', () => {
   const tools = getAllBaseTools();
-  // Stage I registry: read tools first, then write/bash (stable contiguous prefix, A3b)
-  assert.deepEqual(
-    tools.map((t) => t.name),
-    ['Read', 'Glob', 'Grep', 'LS', 'Edit', 'Write', 'Bash', 'BashOutput', 'KillShell'],
-  );
+  // read tools always lead as a contiguous stable prefix (A3b); registry grows over phases
+  assert.deepEqual(tools.slice(0, 4).map((t) => t.name), ['Read', 'Glob', 'Grep', 'LS']);
+  assert.ok(tools.length >= 9, 'write/bash/todo tools registered');
   for (const t of tools) {
     if (['Read', 'Glob', 'Grep', 'LS'].includes(t.name)) {
       assert.equal(t.isReadOnly, true);

@@ -18,6 +18,9 @@ import { loadVexamd, type VexamdResult } from '../context/vexamd.js';
 import { runAgentTurn } from '../engine/queryLoop.js';
 import { getAllBaseTools } from '../tools/registry.js';
 import type { Tool, ToolContext } from '../tools/types.js';
+import { appState, todoReminder, renderTodos } from '../state.js';
+import { evaluatePermission } from '../permissions/engine.js';
+import { shouldAutoCompact, summarizeConversation, applyCompaction, MAX_CONSECUTIVE_FAILURES } from '../context/compaction.js';
 import { computeContextState } from '../engine/contextTracker.js';
 import {
   Transcript,
@@ -100,6 +103,24 @@ export async function runRepl(ctx: CliContext): Promise<void> {
   const out = process.stdout;
   const git = await isGitRepo(process.cwd());
   const sessionVexamd: VexamdResult = loadVexamd(process.cwd()); // memoized per session [CX §2]
+  let compactFailures = 0; // circuit breaker [CX §1.1]
+  const estimateUsage = (msgs: VexaMessage[]): number => {
+    let n = 0;
+    for (const m of msgs) for (const b of m.content) n += b.type === 'text' ? Math.ceil(b.text.length / 4) : 16;
+    return n;
+  };
+  // plan-approval + todo hooks (P12)
+  appState.planApproval = async (plan: string): Promise<boolean> => {
+    out.write(`\n${c.bold('Plan:')}\n${plan}\n\n`);
+    if (process.stdin.isTTY !== true) return false;
+    const answer: string = await new Promise((resolve) => {
+      rl.question(c.cyan('  approve this plan? (y/n) > '), (a) => resolve(a.trim().toLowerCase()));
+    });
+    return answer === 'y' || answer === 'yes';
+  };
+  appState.onTodosChanged = (todos) => {
+    out.write(c.dim('┌─ todos\n') + todos.map((t) => c.dim('│ ') + (renderTodos([t]))).join('\n') + c.dim('\n└─\n'));
+  };
 
   out.write(
     [
@@ -189,6 +210,7 @@ export async function runRepl(ctx: CliContext): Promise<void> {
     await state.transcript.append(userMsg, { fsync: true });
 
     const tools: Tool[] = getAllBaseTools().filter((t) => t.isEnabled());
+    appState.mode = state.mode; // keep app state in sync (ExitPlanMode, todos)
 
     const promptBuilt = buildSystemPrompt({
       modelId: state.resolved.modelId,
@@ -223,13 +245,15 @@ export async function runRepl(ctx: CliContext): Promise<void> {
     };
 
     const askPermission = async (tool: Tool, input: unknown): Promise<boolean> => {
-      if (process.stdin.isTTY !== true) return false; // headless: auto-deny (P17 semantics)
-      // plan mode: read-only tools only (early P12 enforcement)
-      if (state.mode === 'plan' && !tool.isReadOnly) {
-        out.write(c.yellow(`⏸ ${tool.name} blocked in plan mode (read-only only)\n`));
+      // 1. rules engine (P10): deny > ask > allow > mode
+      const decision = evaluatePermission(tool, input, { settings: ctx.settings, mode: state.mode }, toolCtx);
+      if (decision === 'allow') return true;
+      if (decision === 'deny') {
+        out.write(c.red(`⏹ ${tool.name} denied by permission rules (settings: deny list${state.mode === 'plan' ? ' / plan mode' : ''})\n`));
         return false;
       }
-      if (state.mode === 'acceptEdits' && (tool.name === 'Edit' || tool.name === 'Write')) return true;
+      // 2. dialog for 'ask'
+      if (process.stdin.isTTY !== true) return false; // headless: auto-deny (P17 semantics)
       rl.pause();
       out.write(
         `\n${c.yellow(`⚠ ${tool.name} requests permission`)} ${c.dim(JSON.stringify(input ?? {}).slice(0, 180))}\n`,
@@ -317,6 +341,50 @@ export async function runRepl(ctx: CliContext): Promise<void> {
           void name;
         },
         signal: abort.signal,
+        getAttachments: () => {
+          const rem = todoReminder(appState.todos);
+          if (rem === null) return [];
+          return [
+            {
+              uuid: uuid(),
+              parentUuid: null,
+              timestamp: new Date().toISOString(),
+              type: 'user',
+              isMeta: true,
+              content: [{ type: 'text', text: rem }],
+            },
+          ];
+        },
+        autoCompact: async () => {
+          if (ctx.settings.autoCompactEnabled !== true) return false;
+          if (compactFailures >= MAX_CONSECUTIVE_FAILURES) return false;
+          if (!shouldAutoCompact(state.messages, state.resolved.profile.contextWindow, state.resolved.profile.maxTokens)) return false;
+          spinner.stop();
+          out.write(c.yellow('✻ context nearly full — compacting…\n'));
+          try {
+            const { summary } = await summarizeConversation(state.messages, {
+              baseUrl: state.resolved.profile.baseUrl,
+              apiKey: key,
+              model: state.resolved.modelId,
+              maxTokensParam: state.resolved.profile.maxTokensParam,
+              maxTokens: state.resolved.profile.maxTokens,
+            });
+            const tpath = transcriptPathFor(process.cwd(), state.sessionId);
+            const compacted = applyCompaction(state.messages, summary, tpath);
+            void state.transcript.append(compacted[0] as VexaMessage, {
+              compactMetadata: { trigger: 'auto', preCompactTokenCount: state.messages.length },
+            });
+            state.messages.length = 0;
+            state.messages.push(...compacted);
+            compactFailures = 0;
+            out.write(successLine(`compacted — conversation now ~${estimateUsage(state.messages)} tokens\n`));
+            return true;
+          } catch (e) {
+            compactFailures++;
+            out.write(errorLine(`compaction failed (${compactFailures}/${MAX_CONSECUTIVE_FAILURES}): ${(e as Error).message}`) + '\n');
+            return false;
+          }
+        },
       });
 
       spinner.stop();
@@ -464,12 +532,54 @@ export async function runRepl(ctx: CliContext): Promise<void> {
             .join('\n') + '\n',
         );
         return 'handled';
-      case '/permissions':
-        out.write(c.dim(`permission mode: ${state.mode} (rule editor lands in P10)`) + '\n');
+      case '/permissions': {
+        const p = ctx.settings.permissions;
+        out.write(
+          [
+            `  mode: ${state.mode} (shift+tab to cycle)`,
+            `  allow: ${p.allow.length === 0 ? '(none)' : ''}`,
+            ...p.allow.map((r) => c.green(`    ✓ ${r}`)),
+            `  ask: ${p.ask.length === 0 ? '(none)' : ''}`,
+            ...p.ask.map((r) => c.yellow(`    ? ${r}`)),
+            `  deny: ${p.deny.length === 0 ? '(none)' : ''}`,
+            ...p.deny.map((r) => c.red(`    ✗ ${r}`)),
+            c.dim('  rules live in ~/.vexa/config.json and .vexa/settings.json'),
+          ].join('\n') + '\n',
+        );
         return 'handled';
-      case '/compact':
-        out.write(c.dim('compaction lands in P14') + '\n');
+      }
+      case '/compact': {
+        if (state.messages.length === 0) {
+          out.write(c.dim('nothing to compact yet\n'));
+          return 'handled';
+        }
+        const args = line.trim().slice('/compact'.length).trim();
+        out.write(c.yellow('✻ compacting…\n'));
+        try {
+          const key = resolveApiKey(state.resolved.profile, state.resolved.profileName);
+          const { summary } = await summarizeConversation(state.messages, {
+            baseUrl: state.resolved.profile.baseUrl,
+            apiKey: key,
+            model: state.resolved.modelId,
+            maxTokensParam: state.resolved.profile.maxTokensParam,
+            maxTokens: state.resolved.profile.maxTokens,
+            instructions: args,
+          });
+          const tpath = transcriptPathFor(process.cwd(), state.sessionId);
+          const compacted = applyCompaction(state.messages, summary, tpath);
+          void state.transcript.append(compacted[0] as VexaMessage, {
+            compactMetadata: { trigger: 'manual', preCompactTokenCount: state.messages.length },
+          });
+          state.messages.length = 0;
+          state.messages.push(...compacted);
+          compactFailures = 0;
+          out.write(successLine(`compacted — ~${estimateUsage(state.messages)} tokens of context now\n`));
+        } catch (e) {
+          compactFailures++;
+          out.write(errorLine(`compaction failed: ${(e as Error).message}`) + '\n');
+        }
         return 'handled';
+      }
       case '/init': {
         const p = `${process.cwd()}\\VEXA.md`;
         if (fs.existsSync(p)) {
