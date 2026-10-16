@@ -3,8 +3,6 @@ import { parseArgs } from 'node:util';
 import { ensureUserDirs, userConfigPath } from './config/paths.js';
 import { ConfigError, loadSettings, type Settings } from './config/settings.js';
 import { resolveModelRef, type ResolvedModel } from './config/profiles.js';
-import { startRepl } from './entrypoints/repl.js';
-import { runHeadless } from './entrypoints/headless.js';
 import { runProviders } from './entrypoints/providers.js';
 
 const require = createRequire(import.meta.url);
@@ -144,9 +142,11 @@ async function main(): Promise<void> {
   };
 
   if (flags.print) {
+    const { runHeadless } = await import('./entrypoints/headless.js'); // lazy: keeps --help fast (P20)
     await runHeadless(ctx, positionals);
     return;
   }
+  const { startRepl } = await import('./entrypoints/repl.js'); // lazy (P20)
   await startRepl(ctx);
 }
 
