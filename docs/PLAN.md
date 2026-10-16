@@ -77,7 +77,9 @@
 - [x] P17 Headless — ✅ DONE (`vexa -p "prompt"`: full toolset+Task, VEXA.md/memory/skills in prompt, transcript persisted, read-only auto-allow/writes denied, stdin prompt, VEXA_OUTPUT_FORMAT=json result envelope, exit codes 0/1/2; LIVE-VERIFIED: HEADLESS_OK roundtrip + Read(package.json)→"vexa-code")
 - [x] P18 Sessions picker — ✅ DONE (/sessions: numbered listing id/time/msgs/first-prompt preview; /sessions <n> resumes in place; sessionSummaries() data layer; 3/3 tests)
 - [x] P19 Evals — ✅ DONE (evals/ harness: sandbox cases + expect assertions, pure scoreEval, results.json; 3 seed cases LIVE-VERIFIED 3/3 on nemotron-3-super; `node evals/run.mjs --model <ref>`)
-- [~] Stage IV remaining: P20 perf
+- [x] P20 Perf — ✅ DONE (lazy entrypoint imports: --help 330→223ms; baselines: REPL boot ~530ms, headless model-bound; 13/13 suites still green)
+- [ ] Stage V: P21 Tauri shell → P22 chat UI → P23 tool rendering → P24 packaging
+- [ ] Stage VI: P25 hardening → P26 v1.0 release
 - [x] P0.1 GitHub harvest — ✅ DONE (3 repos, 2 prompt generations, 16 tool schemas, 1,884-file deobfuscated source)
 - [x] P0.2 source study — ✅ DONE (4 docs: agent loop/provider, tools/permissions/hooks, context/MCP/extensibility + P0.1 harvest; all cited to source)
 - [x] P0.3 Spec doc — ✅ DONE (docs/SPEC.md: 640 lines, architecture + P1–P26 specs + OpenAI adaptation table + data structures + prompt plan + open decisions)
