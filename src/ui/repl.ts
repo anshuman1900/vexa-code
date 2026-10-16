@@ -13,6 +13,14 @@ import { resolveApiKey } from '../config/profiles.js';
 import type { VexaMessage, Usage } from '../types.js';
 import { EMPTY_USAGE, addUsage } from '../types.js';
 import { buildSystemPrompt } from '../engine/prompt.js';
+import { computeContextState } from '../engine/contextTracker.js';
+import {
+  Transcript,
+  listSessions,
+  newSessionId,
+  readTranscript,
+  transcriptPathFor,
+} from '../sessions/transcript.js';
 import { c, usageLine, errorLine, successLine, clearLine } from './render.js';
 import { Spinner } from './spinner.js';
 import type { CliContext } from '../cli.js';
@@ -34,6 +42,8 @@ interface ReplState {
   resolved: ResolvedModel;
   turns: number;
   interrupted: boolean;
+  sessionId: string;
+  transcript: Transcript;
 }
 
 const HELP_LINES = [
@@ -99,7 +109,35 @@ export async function runRepl(ctx: CliContext): Promise<void> {
     resolved: ctx.resolved,
     turns: 0,
     interrupted: false,
+    sessionId: newSessionId(),
+    transcript: new Transcript(transcriptPathFor(process.cwd(), newSessionId()), '', ctx.version),
   };
+
+  // --resume <id> | most-recent when flag present (P4 crash recovery)
+  if (ctx.resumeTarget !== undefined) {
+    const sessions = listSessions(process.cwd());
+    const target =
+      ctx.resumeTarget === ''
+        ? sessions[0]
+        : sessions.find((s) => s.id === ctx.resumeTarget || s.id.startsWith(ctx.resumeTarget ?? ''));
+    if (target === undefined) {
+      out.write(c.yellow(`no session found for "${ctx.resumeTarget}" — starting fresh\n`));
+    } else {
+      const { messages, warnings, sessionId } = readTranscript(target.path);
+      state.messages = messages;
+      state.sessionId = sessionId ?? target.id;
+      for (const w of warnings) out.write(c.yellow(`  ⚠ ${w}\n`));
+      for (const m of state.messages) {
+        if (m.usage !== undefined && m.usage.estimated === false) {
+          state.totalUsage = addUsage(state.totalUsage, m.usage);
+        }
+      }
+      out.write(
+        c.dim(`✓ resumed ${state.messages.length} messages from ${target.id.slice(0, 8)}… (${new Date(target.mtimeMs).toLocaleString()})\n`),
+      );
+    }
+  }
+  state.transcript = new Transcript(transcriptPathFor(process.cwd(), state.sessionId), state.sessionId, ctx.version);
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -132,6 +170,9 @@ export async function runRepl(ctx: CliContext): Promise<void> {
     running = true;
     const userMsg = makeMsg('user', input, state.messages.at(-1)?.uuid ?? null);
     state.messages.push(userMsg);
+    // Write discipline [AL §1.2.5]: user message fsync'd BEFORE any API call,
+    // so kill -9 mid-turn still leaves the question on disk (P4 acceptance).
+    await state.transcript.append(userMsg, { fsync: true });
 
     const system = buildSystemPrompt({
       modelId: state.resolved.modelId,
@@ -236,16 +277,25 @@ export async function runRepl(ctx: CliContext): Promise<void> {
         usage: result.usage,
         finishReason: result.finishReason,
       });
+      void state.transcript.append(state.messages.at(-1) as VexaMessage);
       state.turns++;
       out.write(
         usageLine(
           result.usage.inputTokens,
           result.usage.outputTokens,
-          state.totalUsage.inputTokens - in0 + in0,
-          state.totalUsage.outputTokens - out0 + out0,
+          state.totalUsage.inputTokens,
+          state.totalUsage.outputTokens,
           state.resolved.profile.contextWindow,
         ) + '\n',
       );
+      const cs = computeContextState(state.messages, state.resolved.profile.contextWindow, state.resolved.profile.maxTokens);
+      if (cs.shouldWarn) {
+        out.write(
+          c.yellow(
+            `⚠ context ${cs.usedTokens.toLocaleString()} tok (≈${cs.pct}%) — auto-compact triggers at ${cs.triggerTokens.toLocaleString()} (P14)`,
+          ) + '\n',
+        );
+      }
       if (interrupted) out.write(c.yellow('⏹ interrupted\n'));
     } catch (err) {
       spinner.stop();
@@ -277,7 +327,38 @@ export async function runRepl(ctx: CliContext): Promise<void> {
         state.messages = [];
         state.turns = 0;
         state.totalUsage = { ...EMPTY_USAGE };
-        out.write(c.dim('✓ conversation cleared\n'));
+        state.sessionId = newSessionId();
+        state.transcript = new Transcript(transcriptPathFor(process.cwd(), state.sessionId), state.sessionId, ctx.version);
+        out.write(c.dim('✓ conversation cleared (new session started)\n'));
+        return 'handled';
+      case '/resume': {
+        const sessions = listSessions(process.cwd());
+        if (sessions.length === 0) {
+          out.write(c.dim('no sessions yet for this directory\n'));
+          return 'handled';
+        }
+        const target =
+          arg === ''
+            ? sessions[0]
+            : sessions.find((s) => s.id === arg || s.id.startsWith(arg));
+        if (target === undefined) {
+          out.write(errorLine(`no session matching "${arg}"`) + '\n');
+          return 'handled';
+        }
+        const { messages, warnings, sessionId } = readTranscript(target.path);
+        state.messages = messages;
+        state.sessionId = sessionId ?? target.id;
+        state.transcript = new Transcript(transcriptPathFor(process.cwd(), state.sessionId), state.sessionId, ctx.version);
+        state.totalUsage = { ...EMPTY_USAGE };
+        for (const m of state.messages) {
+          if (m.usage !== undefined && m.usage.estimated === false) state.totalUsage = addUsage(state.totalUsage, m.usage);
+        }
+        for (const w of warnings) out.write(c.yellow(`  ⚠ ${w}\n`));
+        out.write(successLine(`resumed ${state.messages.length} messages (${new Date(target.mtimeMs).toLocaleString()})\n`));
+        return 'handled';
+      }
+      case '/continue':
+        out.write(c.dim('use /resume — same thing; /continue is an alias\n'));
         return 'handled';
       case '/model': {
         if (arg === '') {
@@ -312,11 +393,13 @@ export async function runRepl(ctx: CliContext): Promise<void> {
       case '/status':
         out.write(
           [
-            `  model    ${state.resolved.profileName}:${state.resolved.modelId}`,
-            `  provider ${state.resolved.profile.baseUrl}`,
-            `  mode     ${state.mode}`,
-            `  context  ${state.resolved.profile.contextWindow.toLocaleString()} tok · messages ${state.messages.length}`,
-            `  cwd      ${process.cwd()}`,
+            `  model     ${state.resolved.profileName}:${state.resolved.modelId}`,
+            `  provider  ${state.resolved.profile.baseUrl}`,
+            `  mode      ${state.mode}`,
+            `  context   ${state.resolved.profile.contextWindow.toLocaleString()} tok · messages ${state.messages.length}`,
+            `  session   ${state.sessionId.slice(0, 8)}…`,
+            `  transcript ${transcriptPathFor(process.cwd(), state.sessionId)}`,
+            `  cwd       ${process.cwd()}`,
           ]
             .map((l) => c.dim(l))
             .join('\n') + '\n',
@@ -327,10 +410,6 @@ export async function runRepl(ctx: CliContext): Promise<void> {
         return 'handled';
       case '/compact':
         out.write(c.dim('compaction lands in P14') + '\n');
-        return 'handled';
-      case '/resume':
-      case '/continue':
-        out.write(c.dim('sessions land in P18') + '\n');
         return 'handled';
       case '/quit':
       case '/exit':

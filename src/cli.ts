@@ -53,6 +53,7 @@ interface CliFlags {
   addDir?: string[];
   maxTurns?: number;
   print: boolean;
+  resume?: string;
 }
 
 export interface CliContext {
@@ -61,10 +62,16 @@ export interface CliContext {
   flags: CliFlags;
   projectRoot: string | null;
   settingsSources: string[];
+  version: string;
+  /** undefined = fresh; '' = resume most recent; otherwise resume by id prefix */
+  resumeTarget?: string;
 }
 
 function parseCliFlags(): { flags: CliFlags; positionals: string[] } {
+  // allow bare `--resume` (= most recent): parseArgs would otherwise demand a value
+  const argv = process.argv.slice(2).map((a) => (a === '--resume' ? '--resume=' : a));
   const { values, positionals } = parseArgs({
+    args: argv,
     allowPositionals: true,
     strict: true,
     options: {
@@ -75,6 +82,7 @@ function parseCliFlags(): { flags: CliFlags; positionals: string[] } {
       'add-dir': { type: 'string', multiple: true },
       'max-turns': { type: 'string' },
       print: { type: 'boolean', short: 'p' },
+      resume: { type: 'string' },
     },
   });
   if (values.help) {
@@ -99,6 +107,7 @@ function parseCliFlags(): { flags: CliFlags; positionals: string[] } {
       addDir: values['add-dir'],
       maxTurns,
       print: values.print === true,
+      resume: values.resume,
     },
     positionals,
   };
@@ -130,6 +139,8 @@ async function main(): Promise<void> {
     flags,
     projectRoot: loaded.projectRoot,
     settingsSources: loaded.sources,
+    version: pkg.version,
+    ...(flags.resume !== undefined ? { resumeTarget: flags.resume } : {}),
   };
 
   if (flags.print) {
