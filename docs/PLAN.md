@@ -55,7 +55,7 @@
 
 ## Status
 - [x] Plan locked (2026-10-16)
-- [ ] P0.1 GitHub harvest — IN PROGRESS
-- [ ] P0.2 REA verification
+- [x] P0.1 GitHub harvest — ✅ DONE (3 repos, 2 prompt generations, 16 tool schemas, 1,884-file deobfuscated source)
+- [ ] P0.2 REA verification — next
 - [ ] P0.3 Spec doc
 - [ ] P0.4 Eval corpus
