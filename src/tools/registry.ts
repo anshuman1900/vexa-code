@@ -15,6 +15,7 @@ import { bashTool } from './bash/bash.js';
 import { bashOutputTool, killShellTool } from './bash/bashOutput.js';
 import { todoTool } from './todo.js';
 import { exitPlanModeTool } from './plan.js';
+import { webFetchTool } from './web/webFetch.js';
 
 /** Order matters: stable prefix for provider prefix caching (SPEC A3b). */
 export function getAllBaseTools(): Tool[] {
@@ -28,6 +29,7 @@ export function getAllBaseTools(): Tool[] {
     bashTool,
     todoTool,
     exitPlanModeTool,
+    webFetchTool,
     bashOutputTool,
     killShellTool,
   ];
