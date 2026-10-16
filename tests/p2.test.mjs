@@ -145,18 +145,17 @@ check('B: dropFields + maxTokensParam rename', async () => {
   assert.equal('max_tokens' in b, false);
 });
 
-check('C: retry on 500 with exponential timing (500ms then ~1000ms between hits)', async () => {
+check('C: retry on 500 with exponential timing (deterministic, injected sleep)', async () => {
   scenario = 'retry500';
   hits = []; capturedBodies = [];
-  const r = await streamChat(req());
+  const delays = [];
+  const r = await streamChat(req(), {}, { sleepFn: async (ms) => { delays.push(ms); } });
   assert.equal(r.text, 'recovered');
   assert.equal(hits.length, 3);
-  const d1 = hits[1] - hits[0]; // backoff 1: 500 + jitter(0..125) + per-request overhead
-  const d2 = hits[2] - hits[1]; // backoff 2: 1000 + jitter(0..250) + same overhead
-  assert.ok(d1 >= 450, `first gap ${d1}ms too fast`);
-  assert.ok(d2 >= 900, `second gap ${d2}ms too fast`);
-  const ratio = d2 / d1;
-  assert.ok(ratio >= 1.25 && ratio <= 3.6, `exponential shape violated: d1=${d1} d2=${d2} ratio=${ratio.toFixed(2)}`);
+  assert.equal(delays.length, 2, 'exactly two backoffs between three attempts');
+  assert.ok(delays[0] >= 500 && delays[0] <= 625, `first delay ${delays[0]} (want 500 + jitter≤25%)`);
+  assert.ok(delays[1] >= 1000 && delays[1] <= 1250, `second delay ${delays[1]} (want 1000 + jitter≤25%)`);
+  assert.ok(delays[1] > delays[0], 'exponential growth violated');
 });
 
 check('D: 3-strike overloaded → error after exactly 3 attempts', async () => {

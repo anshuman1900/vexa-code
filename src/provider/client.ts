@@ -202,7 +202,12 @@ function asProviderError(err: unknown): ProviderError {
  * engine switches to fallbackModel) is the engine's job (P8); per-call, 3
  * consecutive overloaded responses surface as an overloaded error here.
  */
-export async function streamChat(req: ChatRequestParams, cb: StreamCallbacks = {}): Promise<ChatResult> {
+export async function streamChat(
+  req: ChatRequestParams,
+  cb: StreamCallbacks = {},
+  deps: { sleepFn?: (ms: number) => Promise<void> } = {},
+): Promise<ChatResult> {
+  const doSleep = deps.sleepFn ?? sleep;
   let consecutiveOverloaded = 0;
   let connectionFailures = 0;
 
@@ -231,7 +236,7 @@ export async function streamChat(req: ChatRequestParams, cb: StreamCallbacks = {
       if (!shouldRetryKind(perr.kind) || attempt === MAX_RETRIES) throw perr;
       const delay = computeBackoffMs(attempt, perr.retryAfterMs !== undefined ? String(perr.retryAfterMs / 1000) : null);
       cb.onRetry?.(attempt, perr.kind, delay);
-      await sleep(delay);
+      await doSleep(delay);
     }
   }
   throw new ProviderError('protocol', 'unreachable: retry loop exhausted'); // keeps TS happy
