@@ -1,4 +1,5 @@
 import type { Settings, ProviderProfile } from './settings.js';
+import { readStoredKey } from './auth.js';
 
 export interface ResolvedModel {
   profileName: string;
@@ -81,14 +82,16 @@ export function resolveModelRef(settings: Settings, ref?: string): ResolvedModel
  * Never logs or returns the key value in an error.
  */
 export function resolveApiKey(profile: ResolvedModel['profile'], profileName: string): string {
+  if (profile.noAuth === true) return '';
   const envName = profile.apiKeyEnv;
-  const key = process.env[envName];
-  if (key === undefined || key === '') {
-    throw new ProfileError(
-      `API key not set: provider profile "${profileName}" reads it from the environment variable ${envName}.\n` +
-        `  Set it before running vexa, e.g.:  export ${envName}=<your key>\n` +
-        `  (keys are never stored in config.json)`,
-    );
-  }
-  return key;
+  const fromEnv = process.env[envName];
+  if (fromEnv !== undefined && fromEnv !== '') return fromEnv;
+  const stored = readStoredKey(profileName);
+  if (stored !== undefined && stored !== '') return stored;
+  throw new ProfileError(
+    `API key not set: provider profile "${profileName}" needs a key.\n` +
+      `  Either set the environment variable ${envName}, or run:\n` +
+      `    echo <your-key> | vexa providers set-key ${profileName}\n` +
+      `  (keys are never stored in config.json or printed)`,
+  );
 }

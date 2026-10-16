@@ -18,6 +18,9 @@ export interface ProviderProfile {
   headers?: Record<string, string>;
   dropFields?: string[];
   label?: string;
+  /** local servers: no API key required (SPEC §3.4) */
+  noAuth?: boolean;
+  notes?: string;
 }
 
 export interface Permissions {

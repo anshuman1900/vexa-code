@@ -5,6 +5,7 @@ import { ConfigError, loadSettings, type Settings } from './config/settings.js';
 import { resolveModelRef, type ResolvedModel } from './config/profiles.js';
 import { startRepl } from './entrypoints/repl.js';
 import { runHeadless } from './entrypoints/headless.js';
+import { runProviders } from './entrypoints/providers.js';
 
 const require = createRequire(import.meta.url);
 const pkg: { version: string } = require('../package.json');
@@ -26,7 +27,19 @@ FLAGS
 CONFIG
   User settings   ~/.vexa/config.json
   Project         .vexa/settings.json (checked in) + .vexa/settings.local.json
-  API keys        env vars referenced by providerProfiles.<name>.apiKeyEnv
+  API keys        env vars referenced by providerProfiles.<name>.apiKeyEnv,
+                  or ~/.vexa/auth.json via: echo <key> | vexa providers set-key <profile>
+
+PROVIDERS
+  vexa providers list            presets (OpenRouter, Groq, Gemini, Mistral,
+                                 Cerebras, GitHub Models, NVIDIA, HF, Z.AI,
+                                 DeepSeek, Together, Ollama, LM Studio, vLLM)
+                                 + your profiles
+  vexa providers add groq        one-command setup from a preset
+  vexa providers add myapi --base-url https://host/v1 --model m --api-key-env MY_KEY
+  vexa providers set-key <name>  store a key in ~/.vexa/auth.json (0600)
+  vexa providers test <name>     GET /models with the resolved key
+  vexa providers remove <name>
 
 EXAMPLES
   vexa                        start an interactive session
@@ -97,6 +110,12 @@ function fail(message: string): never {
 }
 
 async function main(): Promise<void> {
+  const raw = process.argv.slice(2);
+  if (raw[0] === 'providers') {
+    await runProviders(raw.slice(1));
+    return;
+  }
+
   const { flags, positionals } = parseCliFlags();
 
   ensureUserDirs();
