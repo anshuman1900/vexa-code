@@ -80,7 +80,8 @@
 - [x] P20 Perf — ✅ DONE (lazy entrypoint imports: --help 330→223ms; baselines: REPL boot ~530ms, headless model-bound; 13/13 suites still green)
 - [x] P21 Tauri shell — ✅ DONE (gui/: Vite+vanilla-TS frontend 4.8KB + Tauri v2 Rust shell; sidecar bridge spawns `node dist/cli.js --gui` w/ line-JSON over IPC Channel; streaming + permission bar; cargo build PASS, LIVE window running @26MB; commit 9d53acb)
 - [x] P22 Chat UI polish — ✅ DONE (safe markdown renderer (text-nodes only), welcome state, sticky auto-scroll, elapsed spinner, usage line per turn, +new session button, interrupt aborts fetch; commit 8266f62; live)
-- [~] Stage V remaining: P23 tool rendering → P24 packaging
+- [x] P23 Tool rendering — ✅ DONE (collapsible <details> tool cards w/ smart summaries + real +/- Edit diffs + error state; tool_use events in bridge; commit 6e0ce14; live)
+- [~] Stage V remaining: P24 packaging (NSIS installer)
 - [ ] Stage VI: P25 hardening → P26 v1.0 release
 - [x] P0.1 GitHub harvest — ✅ DONE (3 repos, 2 prompt generations, 16 tool schemas, 1,884-file deobfuscated source)
 - [x] P0.2 source study — ✅ DONE (4 docs: agent loop/provider, tools/permissions/hooks, context/MCP/extensibility + P0.1 harvest; all cited to source)
