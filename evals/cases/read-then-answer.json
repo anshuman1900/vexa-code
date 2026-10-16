@@ -1,0 +1,17 @@
+{
+  "name": "read-then-answer",
+  "prompt": "Use the Read tool to read notes.txt, then reply with only the secret word it contains.",
+  "setup": [
+    {
+      "path": "notes.txt",
+      "content": "meeting notes...\nthe secret word is PINEAPPLE\n"
+    }
+  ],
+  "expect": {
+    "toolUsed": "Read",
+    "outputContains": [
+      "PINEAPPLE"
+    ],
+    "maxTurns": 10
+  }
+}

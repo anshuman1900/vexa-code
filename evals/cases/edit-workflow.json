@@ -1,0 +1,17 @@
+{
+  "name": "edit-workflow",
+  "prompt": "The file config.ini contains 'mode=dev'. Use Read then Edit to change it to 'mode=prod'. Reply with only: DONE",
+  "setup": [
+    {
+      "path": "config.ini",
+      "content": "mode=dev\n"
+    }
+  ],
+  "expect": {
+    "toolUsed": "Edit",
+    "outputContains": [
+      "DONE"
+    ],
+    "maxTurns": 12
+  }
+}

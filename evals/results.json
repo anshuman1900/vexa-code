@@ -1,0 +1,46 @@
+{
+  "timestamp": "2026-10-16T21:33:40.680Z",
+  "model": "nvidia:nvidia/nemotron-3-super-120b-a12b",
+  "results": [
+    {
+      "name": "edit-workflow",
+      "pass": true,
+      "failures": [],
+      "finalText": "DONE",
+      "toolsUsed": [
+        "Read",
+        "Edit"
+      ],
+      "turns": 2,
+      "tokensIn": 12588,
+      "tokensOut": 297,
+      "durationMs": 7624
+    },
+    {
+      "name": "glob-discovery",
+      "pass": true,
+      "failures": [],
+      "finalText": "3",
+      "toolsUsed": [
+        "Glob"
+      ],
+      "turns": 1,
+      "tokensIn": 8328,
+      "tokensOut": 155,
+      "durationMs": 3785
+    },
+    {
+      "name": "read-then-answer",
+      "pass": true,
+      "failures": [],
+      "finalText": "PINEAPPLE",
+      "toolsUsed": [
+        "Read"
+      ],
+      "turns": 1,
+      "tokensIn": 8265,
+      "tokensOut": 203,
+      "durationMs": 5315
+    }
+  ]
+}
