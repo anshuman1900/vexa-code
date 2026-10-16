@@ -5,6 +5,7 @@
  * per-turn usage line, Shift+Tab permission-mode cycle (display until P10).
  */
 import readline from 'node:readline';
+import fs from 'node:fs';
 import { exec } from 'node:child_process';
 import { streamChat } from '../provider/client.js';
 import { toWireMessages } from '../provider/wire.js';
@@ -13,6 +14,7 @@ import { resolveApiKey } from '../config/profiles.js';
 import type { VexaMessage, Usage } from '../types.js';
 import { EMPTY_USAGE, addUsage } from '../types.js';
 import { buildSystemPrompt } from '../engine/prompt.js';
+import { loadVexamd, type VexamdResult } from '../context/vexamd.js';
 import { runAgentTurn } from '../engine/queryLoop.js';
 import { getAllBaseTools } from '../tools/registry.js';
 import type { Tool, ToolContext } from '../tools/types.js';
@@ -96,7 +98,8 @@ function makeMsg(type: VexaMessage['type'], text: string, parent: string | null)
 
 export async function runRepl(ctx: CliContext): Promise<void> {
   const out = process.stdout;
-  const git = await isGitRepo(ctx.settings.permissions.additionalDirectories.length >= 0 ? process.cwd() : process.cwd());
+  const git = await isGitRepo(process.cwd());
+  const sessionVexamd: VexamdResult = loadVexamd(process.cwd()); // memoized per session [CX §2]
 
   out.write(
     [
@@ -185,12 +188,19 @@ export async function runRepl(ctx: CliContext): Promise<void> {
     // so kill -9 mid-turn still leaves the question on disk (P4 acceptance).
     await state.transcript.append(userMsg, { fsync: true });
 
-    const system = buildSystemPrompt({
+    const tools: Tool[] = getAllBaseTools().filter((t) => t.isEnabled());
+
+    const promptBuilt = buildSystemPrompt({
       modelId: state.resolved.modelId,
       modelLabel: state.resolved.profile.label ?? state.resolved.modelId,
       cwd: process.cwd(),
       isGitRepo: git,
+      toolsEnabled: tools.map((t) => t.name),
+      permissionMode: state.mode,
+      vexamd: sessionVexamd,
     });
+    for (const w of promptBuilt.warnings) out.write(c.yellow(`  ⚠ ${w}\n`));
+    const system = promptBuilt.system;
 
     let key = '';
     try {
@@ -211,7 +221,6 @@ export async function runRepl(ctx: CliContext): Promise<void> {
       readFileState,
       cwd: process.cwd(),
     };
-    const tools: Tool[] = getAllBaseTools().filter((t) => t.isEnabled());
 
     const askPermission = async (tool: Tool, input: unknown): Promise<boolean> => {
       if (process.stdin.isTTY !== true) return false; // headless: auto-deny (P17 semantics)
@@ -456,6 +465,36 @@ export async function runRepl(ctx: CliContext): Promise<void> {
       case '/compact':
         out.write(c.dim('compaction lands in P14') + '\n');
         return 'handled';
+      case '/init': {
+        const p = `${process.cwd()}\\VEXA.md`;
+        if (fs.existsSync(p)) {
+          out.write(c.dim(`VEXA.md already exists at ${p} — edit it directly or use /memory (P15)`) + '\n');
+          return 'handled';
+        }
+        fs.writeFileSync(
+          p,
+          [
+            '# VEXA.md',
+            '',
+            'Instructions for Vexa Code when working in this repository.',
+            '',
+            '## Build & test commands',
+            '- Build: (fill in)',
+            '- Test: (fill in)',
+            '- Lint/typecheck: (fill in)',
+            '',
+            '## Conventions',
+            '- (fill in: framework, style, patterns)',
+            '',
+            '## Notes',
+            '- Lines starting with @ can include other files, e.g.:',
+            '@docs/PLAN.md',
+            '',
+          ].join('\n'),
+        );
+        out.write(successLine(`created ${p} — fill in the sections so Vexa knows your repo`) + '\n');
+        return 'handled';
+      }
       case '/quit':
       case '/exit':
         return 'quit';

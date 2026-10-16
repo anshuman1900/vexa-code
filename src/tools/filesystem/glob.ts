@@ -38,8 +38,8 @@ function globToRegExp(pattern: string): RegExp {
   return new RegExp(`^${re}$`, 'i');
 }
 
-function walk(dir: string, out: string[], depth: number): void {
-  if (depth > 12 || out.length > 2000) return;
+function walk(dir: string, out: string[], depth: number, ignores: RegExp[]): void {
+  if (depth > 12 || out.length > 20_000) return;
   let entries: fs.Dirent[];
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -48,10 +48,29 @@ function walk(dir: string, out: string[], depth: number): void {
   }
   for (const e of entries) {
     if (e.name === 'node_modules' || e.name === '.git') continue;
+    if (ignores.some((re) => re.test(e.name))) continue;
     const full = path.join(dir, e.name);
-    if (e.isDirectory()) walk(full, out, depth + 1);
+    if (e.isDirectory()) walk(full, out, depth + 1, ignores);
     else if (e.isFile()) out.push(full);
   }
+}
+
+/** minimal .gitignore support: skip ignored names during the walk */
+function gitignorePatterns(base: string): RegExp[] {
+  const res: RegExp[] = [];
+  try {
+    const raw = fs.readFileSync(path.join(base, '.gitignore'), 'utf8');
+    for (const line of raw.split('\n')) {
+      const t = line.trim();
+      if (t === '' || t.startsWith('#') || t.startsWith('!')) continue;
+      const name = t.replace(/\/+$/, '').split('/').pop() ?? '';
+      if (name === '' || name === '*') continue;
+      res.push(new RegExp(`^${name.replace(/[.+^$()|[\]{}?*]/g, (m) => (m === '*' ? '.*' : `\\${m}`))}$`, 'i'));
+    }
+  } catch {
+    // no .gitignore
+  }
+  return res;
 }
 
 export const globTool: Tool<GlobInput> = {
@@ -83,7 +102,7 @@ export const globTool: Tool<GlobInput> = {
       throw new Error(`Not a directory: ${base}`);
     }
     const files: string[] = [];
-    walk(base, files, 0);
+    walk(base, files, 0, gitignorePatterns(base));
     const re = globToRegExp(input.pattern);
     const matches = files.filter((f) => {
       const rel = path.relative(base, f).replace(/\\/g, '/');

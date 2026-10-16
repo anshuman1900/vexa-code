@@ -89,10 +89,16 @@ await check('LS: listing with ignore patterns', async () => {
 
 await check('Registry: stable order + OpenAI wire shape', () => {
   const tools = getAllBaseTools();
-  assert.deepEqual(tools.map((t) => t.name), ['Read', 'Glob', 'Grep', 'LS']);
+  // Stage I registry: read tools first, then write/bash (stable contiguous prefix, A3b)
+  assert.deepEqual(
+    tools.map((t) => t.name),
+    ['Read', 'Glob', 'Grep', 'LS', 'Edit', 'Write', 'Bash', 'BashOutput', 'KillShell'],
+  );
   for (const t of tools) {
-    assert.equal(t.isReadOnly, true);
-    assert.equal(t.isConcurrencySafe, true);
+    if (['Read', 'Glob', 'Grep', 'LS'].includes(t.name)) {
+      assert.equal(t.isReadOnly, true);
+      assert.equal(t.isConcurrencySafe, true);
+    }
   }
   const wire = toWireTools(tools);
   assert.equal(wire[0].type, 'function');
