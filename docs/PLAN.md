@@ -69,7 +69,8 @@
 - [x] P10 Permissions engine — ✅ DONE (rules Tool/Tool(content)/Bash(npm:*)/Edit(src/**) — word-boundary prefixes, segment-anchored globstars; evaluation deny>ask>allow>mode [TP 5.3]; /permissions viewer; rules from config tiers)
 - [x] P12 Todos + plan mode — ✅ DONE (TodoWrite single-in_progress rule + ✅/▸/☐ rendering + per-turn system-reminder injection [P0.1 C2]; ExitPlanMode w/ approval dialog, plan mode denies non-read-only)
 - [x] P14 Compaction — ✅ DONE (REVERSE-ENGINEERED 9-section summarizer + constants [CX 1.1-1.3]: trigger effective−13000, circuit breaker 3, tool-less fork A8, analysis strip, isCompactSummary re-injection; /compact [instructions]; autocompact wired into agent loop)
-- [~] Stage II remaining: P11 MCP client → P13 subagents → P15 memory/skills/hooks → P16 web tools/checkpoints
+- [x] P11 MCP client — ✅ DONE (stdio JSON-RPC client, initialize/tools/list/tools/call, mcp__server__tool bridge w/ fail-closed + ask-by-default, .mcp.json approval gating + user auto-approve, /mcp status; 4/4 tests; http/sse transport + OAuth deferred v1.1 [OD4])
+- [~] Stage II remaining: P13 subagents → P15 memory/skills/hooks → P16 web tools/checkpoints
 - [x] P0.1 GitHub harvest — ✅ DONE (3 repos, 2 prompt generations, 16 tool schemas, 1,884-file deobfuscated source)
 - [x] P0.2 source study — ✅ DONE (4 docs: agent loop/provider, tools/permissions/hooks, context/MCP/extensibility + P0.1 harvest; all cited to source)
 - [x] P0.3 Spec doc — ✅ DONE (docs/SPEC.md: 640 lines, architecture + P1–P26 specs + OpenAI adaptation table + data structures + prompt plan + open decisions)
