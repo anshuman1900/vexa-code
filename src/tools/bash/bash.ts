@@ -56,6 +56,12 @@ function startShell(command: string, cwd: string): BackgroundShell {
     shell.done = true;
     shell.exitCode = code ?? null;
   });
+  // CRITICAL: handle spawn errors (ENOENT, bad cwd) — an unhandled 'error'
+  // event crashes the whole process (user-reported from PowerShell)
+  child.on('error', (err) => {
+    shell.spawnError = err.message;
+    shell.done = true;
+  });
   shells.set(id, shell);
   return shell;
 }
@@ -132,7 +138,19 @@ export const bashTool: Tool<BashInput> = {
         clearTimeout(movedAt);
         resolve(c ?? 0);
       });
+      shell.child.once('error', () => {
+        clearTimeout(timer);
+        clearTimeout(movedAt);
+        resolve(-1);
+      });
     });
+
+    if (shell.spawnError !== undefined) {
+      clearTimeout(movedAt);
+      return {
+        data: `[spawn failed: ${shell.spawnError}]\nSet VEXA_SHELL_CMD to a shell on your PATH (e.g. powershell.exe) if the auto-detected one is missing.`,
+      };
+    }
 
     if (shell.autoBackgrounded === true) {
       clearTimeout(movedAt);

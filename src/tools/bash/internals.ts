@@ -2,7 +2,7 @@
  * Bash tool internals (SPEC §6 P7): timeouts, output caps, background shells.
  * Constants preserved from [TP §3].
  */
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -28,16 +28,59 @@ export interface BackgroundShell {
   done: boolean;
   exitCode: number | null;
   autoBackgrounded?: boolean;
+  spawnError?: string;
 }
 
 export const shells = new Map<string, BackgroundShell>();
 
-export function resolveShell(): { cmd: string; args: string[] } {
-  // Windows: prefer bash (MSYS/git-bash), fall back to cmd; POSIX: bash
-  if (process.platform === 'win32') {
-    return { cmd: 'bash.exe', args: ['-c'] };
+interface ShellCmd {
+  cmd: string;
+  args: string[];
+}
+
+let cachedShell: ShellCmd | null = null;
+
+/**
+ * Shell resolution (SPEC §6 P7): bash.exe (MSYS/git-bash) → Git's absolute
+ * path → cmd.exe. Probed once (execFileSync 'true'): ENOENT → next candidate;
+ * any other result means the shell exists. Windows PowerShell sessions often
+ * lack bash on PATH — the fallback keeps Vexa working there.
+ */
+export function resolveShell(): ShellCmd {
+  if (cachedShell !== null) return cachedShell;
+  const envCmd = process.env['VEXA_SHELL_CMD'];
+  if (envCmd !== undefined && envCmd !== '') {
+    cachedShell = { cmd: envCmd, args: (process.env['VEXA_SHELL_ARGS'] ?? '-c').split(' ') };
+    return cachedShell;
   }
-  return { cmd: 'bash', args: ['-c'] };
+  const candidates: ShellCmd[] =
+    process.platform === 'win32'
+      ? [
+          { cmd: 'bash.exe', args: ['-c'] },
+          { cmd: 'C:\\Program Files\\Git\\bin\\bash.exe', args: ['-c'] },
+          { cmd: `${process.env['ProgramFiles'] ?? 'C:\\Program Files'}\\Git\\usr\\bin\\bash.exe`, args: ['-c'] },
+          { cmd: 'cmd.exe', args: ['/d', '/s', '/c'] },
+        ]
+      : [{ cmd: 'bash', args: ['-c'] }];
+  for (const cand of candidates) {
+    try {
+      // 'true' succeeds in bash; cmd.exe exits 1 (unknown command) — either
+      // outcome proves the EXECUTABLE exists (only ENOENT means missing)
+      execFileSync(cand.cmd, [...cand.args, 'true'], {
+        timeout: 5000,
+        windowsHide: true,
+        stdio: 'ignore',
+      });
+      cachedShell = cand;
+      return cachedShell;
+    } catch (err) {
+      if ((err as { code?: string }).code === 'ENOENT') continue; // binary missing → next
+      cachedShell = cand;
+      return cachedShell;
+    }
+  }
+  cachedShell = { cmd: 'cmd.exe', args: ['/d', '/s', '/c'] };
+  return cachedShell;
 }
 
 export function shellOutputDir(): string {
