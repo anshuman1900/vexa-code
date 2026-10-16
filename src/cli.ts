@@ -1,12 +1,10 @@
-import { createRequire } from 'node:module';
 import { parseArgs } from 'node:util';
 import { ensureUserDirs, userConfigPath } from './config/paths.js';
 import { ConfigError, loadSettings, type Settings } from './config/settings.js';
 import { resolveModelRef, type ResolvedModel } from './config/profiles.js';
 import { runProviders } from './entrypoints/providers.js';
 
-const require = createRequire(import.meta.url);
-const pkg: { version: string } = require('../package.json');
+import { VERSION } from './version.js';
 
 const HELP_TEXT = `vexa — a coding agent for your terminal. Any model. Any provider.
 
@@ -90,7 +88,7 @@ function parseCliFlags(): { flags: CliFlags; positionals: string[] } {
     process.exit(0);
   }
   if (values.version) {
-    process.stdout.write(`vexa ${pkg.version}\n`);
+    process.stdout.write(`vexa ${VERSION}\n`);
     process.exit(0);
   }
   let maxTurns: number | undefined;
@@ -140,7 +138,7 @@ async function main(): Promise<void> {
     flags,
     projectRoot: loaded.projectRoot,
     settingsSources: loaded.sources,
-    version: pkg.version,
+    version: VERSION,
     ...(flags.resume !== undefined ? { resumeTarget: flags.resume } : {}),
   };
 

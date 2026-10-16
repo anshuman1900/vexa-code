@@ -6,15 +6,28 @@ use serde_json::json;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 struct Bridge(Mutex<Option<Child>>);
 
 #[tauri::command]
 fn bridge_start(app: AppHandle, channel: tauri::ipc::Channel<serde_json::Value>) {
     let cwd = std::env::var("VEXA_GUI_CWD").unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().display().to_string());
-    let node = std::env::var("VEXA_GUI_NODE").unwrap_or_else(|_| "node".to_string());
-    let entry = std::env::var("VEXA_GUI_ENTRY").unwrap_or_else(|_| "C:/Users/Administrator/vexa-code/dist/cli.js".to_string());
+    // packaged mode: node.exe + vexa-cli.cjs ship as bundled resources
+    let (node, entry) = match (std::env::var("VEXA_GUI_NODE"), std::env::var("VEXA_GUI_ENTRY")) {
+        (Ok(n), Ok(e)) => (n, e),
+        _ => {
+            let res = app.path().resource_dir().expect("resource dir");
+            let node_r = res.join("resources").join("node.exe");
+            let entry_r = res.join("resources").join("vexa-cli.cjs");
+            if node_r.exists() && entry_r.exists() {
+                (node_r.display().to_string(), entry_r.display().to_string())
+            } else {
+                // dev fallback: system node + built dist
+                ("node".to_string(), "C:/Users/Administrator/vexa-code/dist/cli.js".to_string())
+            }
+        }
+    };
     let model = std::env::var("VEXA_GUI_MODEL").unwrap_or_else(|_| "nvidia".to_string());
 
     let child = Command::new(&node)
