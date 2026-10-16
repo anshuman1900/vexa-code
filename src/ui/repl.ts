@@ -21,6 +21,9 @@ import type { Tool, ToolContext } from '../tools/types.js';
 import { appState, todoReminder, renderTodos } from '../state.js';
 import { evaluatePermission } from '../permissions/engine.js';
 import { shouldAutoCompact, summarizeConversation, applyCompaction, MAX_CONSECUTIVE_FAILURES } from '../context/compaction.js';
+import { discoverMcpServers } from '../extensibility/mcp/config.js';
+import { McpClient } from '../extensibility/mcp/client.js';
+import { mcpToolsFromClient } from '../tools/mcpBridge.js';
 import { computeContextState } from '../engine/contextTracker.js';
 import {
   Transcript,
@@ -137,7 +140,11 @@ export async function runRepl(ctx: CliContext): Promise<void> {
     ].join('\n'),
   );
 
-  const state: ReplState = {
+  interface ReplStateExtra {
+    mcpTools: Tool[];
+    mcpClients: McpClient[];
+  }
+  const state: ReplState & ReplStateExtra = {
     messages: [],
     totalUsage: { ...EMPTY_USAGE },
     mode: ctx.settings.permissions.defaultMode,
@@ -146,7 +153,27 @@ export async function runRepl(ctx: CliContext): Promise<void> {
     interrupted: false,
     sessionId: newSessionId(),
     transcript: new Transcript(transcriptPathFor(process.cwd(), newSessionId()), '', ctx.version),
+    mcpTools: [],
+    mcpClients: [],
   };
+
+  // ---- MCP servers (P11): user config auto-approved, project .mcp.json gated
+  {
+    const { entries, skipped } = discoverMcpServers(process.cwd(), ctx.settings.mcpServers, async () => false);
+    for (const s of skipped) out.write(c.dim(`MCP server "${s}" in .mcp.json not approved yet — approve via /mcp\n`));
+    for (const entry of entries) {
+      try {
+        const client = new McpClient(entry.name, entry.cfg);
+        await client.start();
+        const defs = await client.listTools();
+        state.mcpClients.push(client);
+        state.mcpTools.push(...mcpToolsFromClient(client, defs));
+        out.write(c.dim(`✓ MCP "${entry.name}" connected — ${defs.length} tool(s)\n`));
+      } catch (e) {
+        out.write(c.yellow(`⚠ MCP "${entry.name}" failed: ${(e as Error).message}\n`));
+      }
+    }
+  }
 
   // --resume <id> | most-recent when flag present (P4 crash recovery)
   if (ctx.resumeTarget !== undefined) {
@@ -209,7 +236,7 @@ export async function runRepl(ctx: CliContext): Promise<void> {
     // so kill -9 mid-turn still leaves the question on disk (P4 acceptance).
     await state.transcript.append(userMsg, { fsync: true });
 
-    const tools: Tool[] = getAllBaseTools().filter((t) => t.isEnabled());
+    const tools: Tool[] = [...getAllBaseTools().filter((t) => t.isEnabled()), ...state.mcpTools];
     appState.mode = state.mode; // keep app state in sync (ExitPlanMode, todos)
 
     const promptBuilt = buildSystemPrompt({
@@ -608,6 +635,16 @@ export async function runRepl(ctx: CliContext): Promise<void> {
           ].join('\n'),
         );
         out.write(successLine(`created ${p} — fill in the sections so Vexa knows your repo`) + '\n');
+        return 'handled';
+      }
+      case '/mcp': {
+        if (state.mcpClients.length === 0) {
+          out.write(c.dim('no MCP servers connected — add them to ~/.vexa/config.json "mcpServers" or project .mcp.json\n'));
+          return 'handled';
+        }
+        for (const mc of state.mcpClients) {
+          out.write(c.dim(`  ${mc.serverName}: ${mc.status} — ${mc.serverInfo.name ?? '?'} v${mc.serverInfo.version ?? '?'}\n`));
+        }
         return 'handled';
       }
       case '/quit':

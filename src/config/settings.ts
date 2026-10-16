@@ -40,6 +40,7 @@ export interface Settings {
   autoCompactEnabled: boolean;
   summaryModel?: string;
   appendSystemPrompt?: string;
+  mcpServers?: Record<string, { command?: string; args?: string[]; env?: Record<string, string>; url?: string; type?: string }>;
 }
 
 export class ConfigError extends Error {
