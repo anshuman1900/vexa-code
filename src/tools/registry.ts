@@ -6,13 +6,15 @@
 import type { Tool } from './types.js';
 import { toWireTool, type WireTool } from '../provider/wire.js';
 import { readTool } from './filesystem/read.js';
+import { writeTool } from './filesystem/write.js';
+import { editTool } from './filesystem/edit.js';
 import { globTool } from './filesystem/glob.js';
 import { grepTool } from './filesystem/grep.js';
 import { lsTool } from './filesystem/ls.js';
 
 /** Order matters: stable prefix for provider prefix caching (SPEC A3b). */
 export function getAllBaseTools(): Tool[] {
-  return [readTool, globTool, grepTool, lsTool];
+  return [readTool, globTool, grepTool, lsTool, editTool, writeTool];
 }
 
 export function getTool(name: string): Tool | undefined {
