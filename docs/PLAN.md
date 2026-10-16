@@ -72,7 +72,8 @@
 - [x] P11 MCP client — ✅ DONE (stdio JSON-RPC client, initialize/tools/list/tools/call, mcp__server__tool bridge w/ fail-closed + ask-by-default, .mcp.json approval gating + user auto-approve, /mcp status; 4/4 tests; http/sse transport + OAuth deferred v1.1 [OD4])
 - [x] P16-lite WebFetch — ✅ DONE (fetch + HTML→text + entity decode + 15min cache + cross-host redirect protocol; 3/3 live tests; WebSearch (Tavily/Brave) + checkpoints deferred)
 - [x] P13 Subagents — ✅ DONE (Task tool: general-purpose + Explore types w/ distinct prompts + scoped allowlists, isolated messages/readFileState, parallel-safe, report-as-result; 3/3 tests; bg agents + custom agent files deferred v1.1 [OD9])
-- [~] Stage II remaining: P15 memory/skills/hooks → P16 WebSearch+checkpoints → P17 headless → P18 sessions picker → P19 evals → P20 perf
+- [x] P15 Memory/skills/hooks — ✅ DONE (auto-memory dir keyed by git root + MEMORY.md always-loaded w/ caps; SKILL.md two-level loading + prompt section 13; custom slash commands .vexa/commands/*.md w/ $ARGUMENTS; hooks PreToolUse/PostToolUse/UserPromptSubmit/SessionStart/Stop — exit-2 block + JSON decision contract; 6/6 tests)
+- [~] Stage II remaining: P16 WebSearch+checkpoints → P17 headless → P18 sessions picker → P19 evals → P20 perf
 - [x] P0.1 GitHub harvest — ✅ DONE (3 repos, 2 prompt generations, 16 tool schemas, 1,884-file deobfuscated source)
 - [x] P0.2 source study — ✅ DONE (4 docs: agent loop/provider, tools/permissions/hooks, context/MCP/extensibility + P0.1 harvest; all cited to source)
 - [x] P0.3 Spec doc — ✅ DONE (docs/SPEC.md: 640 lines, architecture + P1–P26 specs + OpenAI adaptation table + data structures + prompt plan + open decisions)
