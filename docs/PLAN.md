@@ -66,7 +66,10 @@
 - [x] P7 Bash tool — ✅ DONE (120s/600s timeouts, 30k middle-truncation, background shells + BashOutput/KillShell, 15s auto-background, sleep refusal; 9/9 tests)
 - [x] P8 Agent loop — ✅ DONE (while(true) state machine: parallel batching ≤10, permission engine hooks + y/n dialog + plan-mode read-only enforcement, orphan prevention A7, length ladder A13, max-turns; REAL end-to-end agent task verified on live model — Read tool → answer; 6/6 tests)
 - [x] P9 System prompt + VEXA.md — ✅ DONE (15-section assembly w/ byte-stable static prefix, hierarchical VEXA.md loader w/ @include + rules + provenance, /init; Glob .gitignore-aware walk fix; 7/7 tests; **STAGE I COMPLETE — full suite 46/46**)
-- [~] NEXT: Stage II continues (P10 permissions → P11 MCP → P12 todos/plan → P13 subagents → P14 compaction → P15 memory/skills → P16 web/checkpoints)
+- [x] P10 Permissions engine — ✅ DONE (rules Tool/Tool(content)/Bash(npm:*)/Edit(src/**) — word-boundary prefixes, segment-anchored globstars; evaluation deny>ask>allow>mode [TP 5.3]; /permissions viewer; rules from config tiers)
+- [x] P12 Todos + plan mode — ✅ DONE (TodoWrite single-in_progress rule + ✅/▸/☐ rendering + per-turn system-reminder injection [P0.1 C2]; ExitPlanMode w/ approval dialog, plan mode denies non-read-only)
+- [x] P14 Compaction — ✅ DONE (REVERSE-ENGINEERED 9-section summarizer + constants [CX 1.1-1.3]: trigger effective−13000, circuit breaker 3, tool-less fork A8, analysis strip, isCompactSummary re-injection; /compact [instructions]; autocompact wired into agent loop)
+- [~] Stage II remaining: P11 MCP client → P13 subagents → P15 memory/skills/hooks → P16 web tools/checkpoints
 - [x] P0.1 GitHub harvest — ✅ DONE (3 repos, 2 prompt generations, 16 tool schemas, 1,884-file deobfuscated source)
 - [x] P0.2 source study — ✅ DONE (4 docs: agent loop/provider, tools/permissions/hooks, context/MCP/extensibility + P0.1 harvest; all cited to source)
 - [x] P0.3 Spec doc — ✅ DONE (docs/SPEC.md: 640 lines, architecture + P1–P26 specs + OpenAI adaptation table + data structures + prompt plan + open decisions)
