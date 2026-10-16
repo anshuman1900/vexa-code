@@ -23,12 +23,13 @@ async function check(name, fn) {
 const msg = (type, text, uuid) =>
   JSON.stringify({ uuid, parentUuid: null, timestamp: '2026-10-17T00:00:00Z', type, content: [{ type: 'text', text }] });
 
-import { projectsDir } from '../dist/sessions/transcript.js';
+import { projectsDir } from '../dist/config/paths.js';
 const pdir = projectsDir(repo);
 fs.mkdirSync(pdir, { recursive: true });
 fs.writeFileSync(path.join(pdir, 'old-session.jsonl'), [msg('user', 'fix the login bug in auth flow', 'u1'), msg('assistant', 'ok', 'a1')].join('\n'));
 fs.writeFileSync(path.join(pdir, 'new-session.jsonl'), [msg('user', 'x'.repeat(200), 'u2'), msg('user', 'second', 'u3'), msg('assistant', 'a', 'a2')].join('\n'));
 fs.writeFileSync(path.join(pdir, 'empty.jsonl'), '');
+fs.utimesSync(path.join(pdir, 'empty.jsonl'), new Date(Date.now() - 120_000), new Date(Date.now() - 120_000));
 fs.utimesSync(path.join(pdir, 'old-session.jsonl'), new Date(Date.now() - 60_000), new Date(Date.now() - 60_000));
 
 await check('ordering + counts + preview truncation', () => {
