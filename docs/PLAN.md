@@ -78,7 +78,8 @@
 - [x] P18 Sessions picker — ✅ DONE (/sessions: numbered listing id/time/msgs/first-prompt preview; /sessions <n> resumes in place; sessionSummaries() data layer; 3/3 tests)
 - [x] P19 Evals — ✅ DONE (evals/ harness: sandbox cases + expect assertions, pure scoreEval, results.json; 3 seed cases LIVE-VERIFIED 3/3 on nemotron-3-super; `node evals/run.mjs --model <ref>`)
 - [x] P20 Perf — ✅ DONE (lazy entrypoint imports: --help 330→223ms; baselines: REPL boot ~530ms, headless model-bound; 13/13 suites still green)
-- [ ] Stage V: P21 Tauri shell → P22 chat UI → P23 tool rendering → P24 packaging
+- [x] P21 Tauri shell — ✅ DONE (gui/: Vite+vanilla-TS frontend 4.8KB + Tauri v2 Rust shell; sidecar bridge spawns `node dist/cli.js --gui` w/ line-JSON over IPC Channel; streaming + permission bar; cargo build PASS, LIVE window running @26MB; commit 9d53acb)
+- [~] Stage V remaining: P22 chat UI polish → P23 tool rendering → P24 packaging
 - [ ] Stage VI: P25 hardening → P26 v1.0 release
 - [x] P0.1 GitHub harvest — ✅ DONE (3 repos, 2 prompt generations, 16 tool schemas, 1,884-file deobfuscated source)
 - [x] P0.2 source study — ✅ DONE (4 docs: agent loop/provider, tools/permissions/hooks, context/MCP/extensibility + P0.1 harvest; all cited to source)
