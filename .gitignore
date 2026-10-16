@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# builds
+dist/
+build/
+*.tsbuildinfo
+
+# env & secrets
+.env
+.env.*
+*.local
+
+# logs
+*.log
+npm-debug.log*
+
+# local research mirrors (third-party repos, not ours to publish)
+research/upstream/
+
+# OS junk
+.DS_Store
+Thumbs.db
