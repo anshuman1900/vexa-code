@@ -10,6 +10,9 @@ import path from 'node:path';
 import { createCheckpointer } from '../dist/sessions/checkpoints.js';
 
 const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'vexa-cp-'));
+// isolate VEXA_CONFIG_DIR so checkpoints never touch the real ~/.vexa
+const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'vexa-cp-home-'));
+process.env['VEXA_CONFIG_DIR'] = tmpHome;
 const cp = createCheckpointer('test-session_1', repo);
 
 let failed = 0;
@@ -49,4 +52,6 @@ await check('restore latest → v3 (pre-v4 state); restore by n → v1 byte-exac
 });
 
 console.log(failed === 0 ? '\nALL CHECKPOINT TESTS PASSED' : `\n${failed} CHECKPOINT TESTS FAILED`);
+fs.rmSync(tmpHome, { recursive: true, force: true });
+fs.rmSync(repo, { recursive: true, force: true });
 process.exit(failed === 0 ? 0 : 1);
