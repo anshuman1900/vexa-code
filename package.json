@@ -1,0 +1,22 @@
+{
+  "name": "vexa-code",
+  "version": "0.1.0",
+  "description": "Clean, simple, feature-rich coding agent for your terminal. Any model. Any provider.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "vexa": "./dist/cli.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^5.9.3"
+  }
+}
