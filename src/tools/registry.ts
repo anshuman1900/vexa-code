@@ -11,10 +11,12 @@ import { editTool } from './filesystem/edit.js';
 import { globTool } from './filesystem/glob.js';
 import { grepTool } from './filesystem/grep.js';
 import { lsTool } from './filesystem/ls.js';
+import { bashTool } from './bash/bash.js';
+import { bashOutputTool, killShellTool } from './bash/bashOutput.js';
 
 /** Order matters: stable prefix for provider prefix caching (SPEC A3b). */
 export function getAllBaseTools(): Tool[] {
-  return [readTool, globTool, grepTool, lsTool, editTool, writeTool];
+  return [readTool, globTool, grepTool, lsTool, editTool, writeTool, bashTool, bashOutputTool, killShellTool];
 }
 
 export function getTool(name: string): Tool | undefined {
