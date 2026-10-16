@@ -77,9 +77,10 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     name: 'nvidia',
     baseUrl: 'https://integrate.api.nvidia.com/v1',
     apiKeyEnv: 'NVIDIA_API_KEY',
-    defaultModel: 'meta/llama-3.3-70b-instruct',
+    defaultModel: 'nvidia/nemotron-3-super-120b-a12b',
     contextWindow: 128000,
     label: 'NVIDIA NIM (free credits)',
+    notes: 'catalog is per-account (old ids 404) — run `vexa providers test nvidia` to list yours; nemotron-3-ultra currently hangs server-side',
   },
   {
     name: 'huggingface',
