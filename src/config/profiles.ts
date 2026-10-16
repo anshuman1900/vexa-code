@@ -52,6 +52,15 @@ export function resolveModelRef(settings: Settings, ref?: string): ResolvedModel
       continue;
     }
 
+    // bare ref that matches a configured profile name → select that profile
+    if (!current.includes(':') && settings.providerProfiles[current] !== undefined) {
+      const raw = settings.providerProfiles[current];
+      if (raw !== undefined) {
+        const modelId = raw.model;
+        return { profileName: current, profile: withDefaults(current, raw), modelId, viaAlias };
+      }
+    }
+
     const colon = current.indexOf(':');
     let profileName = 'default';
     let modelId = current;
