@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vexa Code</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <header id="topbar">
+    <span class="logo">✻</span>
+    <span id="model-label">connecting…</span>
+    <span id="cwd-label"></span>
+  </header>
+  <main id="chat" aria-live="polite"></main>
+  <div id="permission-bar" class="hidden">
+    <div id="permission-text"></div>
+    <button id="perm-allow">Allow</button>
+    <button id="perm-deny" class="secondary">Deny</button>
+  </div>
+  <footer>
+    <textarea id="input" rows="1" placeholder="Ask Vexa to build, fix, or explain something…  (Enter to send, Shift+Enter for newline)"></textarea>
+    <button id="send" title="Send">↑</button>
+    <button id="stop" title="Interrupt" class="hidden">■</button>
+  </footer>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

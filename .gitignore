@@ -21,3 +21,6 @@ research/upstream/
 # OS junk
 .DS_Store
 Thumbs.db
+gui/dist-gui/
+gui/node_modules/
+gui/src-tauri/target/
