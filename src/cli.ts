@@ -51,6 +51,7 @@ interface CliFlags {
   addDir?: string[];
   maxTurns?: number;
   print: boolean;
+  gui?: boolean;
   resume?: string;
 }
 
@@ -79,6 +80,7 @@ function parseCliFlags(): { flags: CliFlags; positionals: string[] } {
       settings: { type: 'string' },
       'add-dir': { type: 'string', multiple: true },
       'max-turns': { type: 'string' },
+      gui: { type: 'boolean' },
       print: { type: 'boolean', short: 'p' },
       resume: { type: 'string' },
     },
@@ -105,6 +107,7 @@ function parseCliFlags(): { flags: CliFlags; positionals: string[] } {
       addDir: values['add-dir'],
       maxTurns,
       print: values.print === true,
+      gui: values.gui === true,
       resume: values.resume,
     },
     positionals,
@@ -141,6 +144,11 @@ async function main(): Promise<void> {
     ...(flags.resume !== undefined ? { resumeTarget: flags.resume } : {}),
   };
 
+  if (flags.gui === true) {
+    const { runGuiBridge } = await import('./entrypoints/guiBridge.js');
+    runGuiBridge(ctx);
+    return;
+  }
   if (flags.print) {
     const { runHeadless } = await import('./entrypoints/headless.js'); // lazy: keeps --help fast (P20)
     await runHeadless(ctx, positionals);
