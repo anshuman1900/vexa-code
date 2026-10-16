@@ -82,6 +82,7 @@ export function runGuiBridge(ctx: CliContext): void {
   let transcript = newTranscript();
   let pendingPermission: { resolve: (allow: boolean) => void } | null = null;
   let interruptRequested = false;
+  let currentAbort: AbortController | null = null;
 
   const abortFor = (): { abort: AbortController; toolCtx: ToolContext } => {
     const abort = new AbortController();
@@ -154,6 +155,7 @@ export function runGuiBridge(ctx: CliContext): void {
     }
     if (cmd.type === 'interrupt') {
       interruptRequested = true;
+      currentAbort?.abort();
       return;
     }
     if (cmd.type === 'new_session') {
@@ -168,6 +170,7 @@ export function runGuiBridge(ctx: CliContext): void {
 
     activeTurns++;
     const { abort, toolCtx } = abortFor();
+    currentAbort = abort;
     const userMsg: VexaMessage = {
       uuid: crypto.randomUUID(),
       parentUuid: null,

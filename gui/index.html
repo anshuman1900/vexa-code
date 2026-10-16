@@ -10,9 +10,17 @@
   <header id="topbar">
     <span class="logo">✻</span>
     <span id="model-label">connecting…</span>
-    <span id="cwd-label"></span>
+    <span id="cwd-label" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+    <button id="new-session" class="secondary" style="padding:3px 10px;font-size:11px;">+ new</button>
   </header>
-  <main id="chat" aria-live="polite"></main>
+  <main id="chat" aria-live="polite">
+    <div id="welcome">
+      <div style="font-size:26px;color:var(--accent);">✻</div>
+      <div style="font-weight:600;margin:4px 0;">Welcome to Vexa Code</div>
+      <div style="color:var(--dim);font-size:13px;">a coding agent for your desktop — any model, any provider</div>
+      <div style="color:var(--dim);font-size:12px;margin-top:10px;">try: "explain this repo" · "fix the failing test" · "/help"</div>
+    </div>
+  </main>
   <div id="permission-bar" class="hidden">
     <div id="permission-text"></div>
     <button id="perm-allow">Allow</button>

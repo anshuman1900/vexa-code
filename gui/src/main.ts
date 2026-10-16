@@ -1,5 +1,6 @@
 // Vexa Code GUI — talks to the `vexa --gui` sidecar over line-JSON.
 import { invoke, Channel } from '@tauri-apps/api/core';
+import { renderMarkdown } from './markdown';
 
 const chat = document.getElementById('chat') as HTMLElement;
 const input = document.getElementById('input') as HTMLTextAreaElement;
@@ -42,32 +43,73 @@ function addToolLine(name: string, detail: string, isError: boolean): void {
   chat.scrollTop = chat.scrollHeight;
 }
 
+const welcome = document.getElementById('welcome') as HTMLElement;
+const newSessionBtn = document.getElementById('new-session') as HTMLButtonElement;
+let turnStart = 0;
+let spinnerTimer: ReturnType<typeof setInterval> | null = null;
+
+function setSpinner(on: boolean): void {
+  if (spinnerTimer !== null) { clearInterval(spinnerTimer); spinnerTimer = null; }
+  if (on) {
+    turnStart = Date.now();
+    modelLabel.textContent = `${modelLabel.textContent ?? ''} …`;
+    spinnerTimer = setInterval(() => {
+      const secs = ((Date.now() - turnStart) / 1000).toFixed(0);
+      const base = modelLabel.textContent?.replace(/ · \d+s$/, '').replace(/ …$/, '') ?? '';
+      modelLabel.textContent = `${base} … · ${secs}s`;
+    }, 1000);
+  } else {
+    modelLabel.textContent = (modelLabel.textContent ?? '').replace(/ · \d+s$/, '').replace(/ …$/, '');
+  }
+}
+
+function nearBottom(): boolean {
+  return chat.scrollHeight - chat.scrollTop - chat.clientHeight < 80;
+}
+function scrollIfSticky(force = false): void {
+  if (force || nearBottom()) chat.scrollTop = chat.scrollHeight;
+}
+
+newSessionBtn.addEventListener('click', () => {
+  chat.textContent = '';
+  chat.append(welcome);
+  welcome.style.display = '';
+  streamingEl = null;
+  void invoke('bridge_write', { data: JSON.stringify({ type: 'new_session' }) + '\n' });
+});
+
 const channel = new Channel<string>();
 channel.onmessage = (line: string) => {
   let ev: Record<string, unknown>;
   try { ev = JSON.parse(line); } catch { return; }
   switch (ev['type']) {
     case 'ready': {
+      setSpinner(false);
       modelLabel.textContent = `${String(ev['provider'])}:${String(ev['model'])}`;
       cwdLabel.textContent = String(ev['cwd'] ?? '');
       break;
     }
     case 'assistant_delta': {
+      welcome.style.display = 'none';
       if (streamingEl === null) {
         streamingText = '';
         streamingEl = addMessage('assistant', '');
       }
       streamingText += String(ev['text'] ?? '');
-      streamingEl.textContent = streamingText;
-      chat.scrollTop = chat.scrollHeight;
+      renderMarkdown(streamingEl, streamingText);
+      scrollIfSticky();
       break;
     }
     case 'assistant_message': {
-      if (streamingEl !== null) { streamingEl.textContent = String(ev['text'] ?? ''); streamingEl = null; }
-      else addMessage('assistant', String(ev['text'] ?? ''));
+      if (streamingEl !== null) { renderMarkdown(streamingEl, String(ev['text'] ?? '')); streamingEl = null; }
+      else {
+        const b = addMessage('assistant', '');
+        renderMarkdown(b, String(ev['text'] ?? ''));
+      }
       break;
     }
     case 'tool_result': {
+      welcome.style.display = 'none';
       addToolLine(String(ev['name'] ?? 'tool'), String(ev['content'] ?? ''), ev['isError'] === true);
       break;
     }
@@ -79,9 +121,18 @@ channel.onmessage = (line: string) => {
     }
     case 'turn_end': {
       streamingEl = null;
+      setSpinner(false);
+      const u = ev['usage'] as { inputTokens?: number; outputTokens?: number } | null;
+      if (u !== null && u !== undefined) {
+        const meta = el('div', 'who');
+        meta.textContent = `in=${u.inputTokens ?? '?'} out=${u.outputTokens ?? '?'}`;
+        chat.append(meta);
+      }
       sendBtn.classList.remove('hidden');
       stopBtn.classList.add('hidden');
       input.disabled = false;
+      input.focus();
+      scrollIfSticky(true);
       break;
     }
     case 'error': {
@@ -94,7 +145,9 @@ channel.onmessage = (line: string) => {
 function send(): void {
   const text = input.value.trim();
   if (text === '') return;
+  welcome.style.display = 'none';
   addMessage('user', text);
+  setSpinner(true);
   input.value = '';
   input.disabled = true;
   sendBtn.classList.add('hidden');
