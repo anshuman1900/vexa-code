@@ -26,6 +26,14 @@ import { discoverMcpServers } from '../extensibility/mcp/config.js';
 import { McpClient } from '../extensibility/mcp/client.js';
 import { mcpToolsFromClient } from '../tools/mcpBridge.js';
 import { computeContextState } from '../engine/contextTracker.js';
+import { ensureMemoryDir, loadMemory } from '../context/memory.js';
+import { discoverSkills, discoverCommands, expandCommand } from '../extensibility/skills.js';
+import { runHooks } from '../extensibility/hooks.js';
+import { skillsPromptSection } from '../extensibility/skills.js';
+
+function skillsPromptSectionSafe(skills: ReturnType<typeof discoverSkills>): string | undefined {
+  return skillsPromptSection(skills) ?? undefined;
+}
 import {
   Transcript,
   listSessions,
@@ -108,6 +116,11 @@ export async function runRepl(ctx: CliContext): Promise<void> {
   const git = await isGitRepo(process.cwd());
   const sessionVexamd: VexamdResult = loadVexamd(process.cwd()); // memoized per session [CX §2]
   let compactFailures = 0; // circuit breaker [CX §1.1]
+  const memoryDir = ensureMemoryDir(process.cwd());
+  const memory = loadMemory(process.cwd());
+  const skills = discoverSkills(process.cwd());
+  const customCommands = discoverCommands(process.cwd());
+  for (const w of memory.warnings) out.write(c.yellow(`  ⚠ ${w}\n`));
   const estimateUsage = (msgs: VexaMessage[]): number => {
     let n = 0;
     for (const m of msgs) for (const b of m.content) n += b.type === 'text' ? Math.ceil(b.text.length / 4) : 16;
@@ -248,6 +261,14 @@ export async function runRepl(ctx: CliContext): Promise<void> {
       return;
     }
 
+    const upHook = await runHooks(ctx.settings, 'UserPromptSubmit', { sessionId: state.sessionId, cwd: process.cwd() });
+    if (upHook.blocking) {
+      out.write(c.red(`⏹ prompt blocked by UserPromptSubmit hook: ${upHook.reason ?? 'no reason'}`) + '\n');
+      running = false;
+      return;
+    }
+    if (upHook.systemMessage !== undefined) out.write(c.dim(upHook.systemMessage) + '\n');
+
     const spinner = new Spinner(out);
     spinner.start();
     const abort = new AbortController();
@@ -267,7 +288,16 @@ export async function runRepl(ctx: CliContext): Promise<void> {
         out.write(c.red(`⏹ ${tool.name} denied by permission rules (settings: deny list${state.mode === 'plan' ? ' / plan mode' : ''})\n`));
         return false;
       }
-      // 2. dialog for 'ask'
+      // 2. PreToolUse hooks can block or approve
+      const pre = await runHooks(ctx.settings, 'PreToolUse', {
+        sessionId: state.sessionId, toolName: tool.name, toolInput: input, cwd: process.cwd(),
+      });
+      if (pre.decision === 'approve') return true;
+      if (pre.blocking) {
+        out.write(c.red(`⏹ ${tool.name} blocked by PreToolUse hook: ${pre.reason ?? 'no reason'}`) + '\n');
+        return false;
+      }
+      // 3. dialog for 'ask'
       if (process.stdin.isTTY !== true) return false; // headless: auto-deny (P17 semantics)
       rl.pause();
       out.write(
@@ -311,6 +341,9 @@ export async function runRepl(ctx: CliContext): Promise<void> {
       toolsEnabled: tools.map((t) => t.name),
       permissionMode: state.mode,
       vexamd: sessionVexamd,
+      memoryContent: memory.content,
+      memoryDir,
+      skillsSection: skillsPromptSectionSafe(skills),
     });
     for (const w of promptBuilt.warnings) out.write(c.yellow(`  ⚠ ${w}\n`));
     const system = promptBuilt.system;
@@ -388,7 +421,12 @@ export async function runRepl(ctx: CliContext): Promise<void> {
         },
         onToolResult: (name, content, isError) => {
           out.write(toolResultLine(truncateResult(content), isError) + '\n');
-          void name;
+          void runHooks(ctx.settings, 'PostToolUse', {
+            sessionId: state.sessionId, toolName: name,
+            toolInput: undefined, cwd: process.cwd(),
+          }).then((h) => {
+            if (h.systemMessage !== undefined) out.write(c.dim(h.systemMessage) + '\n');
+          });
         },
         signal: abort.signal,
         getAttachments: () => {
@@ -692,6 +730,14 @@ export async function runRepl(ctx: CliContext): Promise<void> {
     while (queue.length > 0 && !quitRequested) {
       const line = (queue.shift() ?? '').trim();
       if (line !== '' && line.startsWith('/')) {
+        const cmdName = line.slice(1).split(/\s+/)[0]?.toLowerCase() ?? '';
+        const custom = customCommands.find((cc) => cc.name === cmdName);
+        if (custom !== undefined) {
+          const args = line.slice(1 + cmdName.length).trim();
+          await runTurn(expandCommand(custom, args));
+          if (queue.length === 0) printPrompt();
+          continue;
+        }
         const r = await handleSlash(line);
         if (r === 'quit') quitRequested = true;
         else if (queue.length === 0) printPrompt();

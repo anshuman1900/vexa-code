@@ -15,6 +15,9 @@ export interface PromptContext {
   toolsEnabled: string[];
   vexamd?: VexamdResult;
   permissionMode?: string;
+  memoryContent?: string;
+  memoryDir?: string;
+  skillsSection?: string;
 }
 
 /** §5.1 #1-5 static sections (byte-stable per session — cache prefix, A3) */
@@ -96,8 +99,16 @@ export function buildSystemPrompt(ctx: PromptContext): { system: string; warning
   dynamic.push(
     '',
     '# Memory',
-    'A memory directory will be provided in a future session type. For now, rely on VEXA.md files for durable context.',
+    ctx.memoryDir !== undefined && ctx.memoryDir !== ''
+      ? `Auto-memory directory: ${ctx.memoryDir} (it already exists — do NOT run mkdir). Save durable facts about the user/project with the Write tool as MEMORY.md (index) or topic files, then reference them here.`
+      : 'Auto-memory is not available in this session; rely on VEXA.md files for durable context.',
   );
+  if (ctx.memoryContent !== undefined && ctx.memoryContent !== '') {
+    dynamic.push('', 'Contents of MEMORY.md (user memory index):', '', ctx.memoryContent);
+  }
+  if (ctx.skillsSection !== undefined && ctx.skillsSection !== '') {
+    dynamic.push('', ctx.skillsSection);
+  }
 
   return {
     system: `${staticPrefix()}\n\n${dynamic.join('\n')}`,
