@@ -26,7 +26,7 @@ import {
   readTranscript,
   transcriptPathFor,
 } from '../sessions/transcript.js';
-import { c, usageLine, errorLine, successLine, clearLine, toolUseLine, toolResultLine, summarizeToolInput } from './render.js';
+import { c, usageLine, errorLine, successLine, clearLine, toolUseLine, toolResultLine, summarizeToolInput, StreamRenderer } from './render.js';
 import { Spinner } from './spinner.js';
 import type { CliContext } from '../cli.js';
 import { resolveModelRef, type ResolvedModel } from '../config/profiles.js';
@@ -270,6 +270,8 @@ export async function runRepl(ctx: CliContext): Promise<void> {
     const out0 = state.totalUsage.outputTokens;
     let firstChunk = true;
 
+    const renderer = new StreamRenderer((s) => process.stdout.write(s));
+
     try {
       const result = await runAgentTurn({
         baseUrl: state.resolved.profile.baseUrl,
@@ -293,16 +295,17 @@ export async function runRepl(ctx: CliContext): Promise<void> {
             firstChunk = false;
             spinner.stop();
           }
-          process.stdout.write(d);
+          renderer.push(d);
         },
         onReasoningDelta: (d) => {
           if (firstChunk) {
             firstChunk = false;
             spinner.stop();
           }
-          process.stdout.write(c.dim(d));
+          renderer.push(c.dim(c.italic(d)));
         },
         onToolStart: (name, input) => {
+          renderer.flushSoft();
           if (firstChunk) {
             firstChunk = false;
             spinner.stop();
@@ -317,6 +320,7 @@ export async function runRepl(ctx: CliContext): Promise<void> {
       });
 
       spinner.stop();
+      renderer.flush();
       if (result.finalText !== '') out.write('\n');
 
       state.totalUsage = addUsage(state.totalUsage, result.usage);
@@ -353,6 +357,7 @@ export async function runRepl(ctx: CliContext): Promise<void> {
       if (interrupted) out.write(c.yellow('⏹ interrupted\n'));
     } catch (err) {
       spinner.stop();
+      renderer.flushSoft();
       out.write('\n');
       if (err instanceof ProviderError) {
         out.write(errorLine(`${err.kind}: ${err.message}`) + '\n');

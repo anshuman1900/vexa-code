@@ -23,6 +23,7 @@ export class Spinner {
   private timer: ReturnType<typeof setInterval> | null = null;
   private frame = 0;
   private readonly verb: string;
+  private readonly startedAt = Date.now();
 
   constructor(
     private readonly out: NodeJS.WriteStream,
@@ -36,7 +37,9 @@ export class Spinner {
     this.timer = setInterval(() => {
       const f = FRAMES[this.frame % FRAMES.length] ?? '·';
       this.frame++;
-      this.out.write(`${clearLine()}${c.magenta(f)} ${this.verb}… ${c.dim(hint)}`);
+      const secs = Math.floor((Date.now() - this.startedAt) / 1000);
+      const elapsed = secs > 0 ? c.dim(` ${secs}s ·`) : '';
+      this.out.write(`${clearLine()}${c.magenta(f)} ${this.verb}… ${elapsed} ${c.dim(hint)}`);
     }, 120);
   }
 
