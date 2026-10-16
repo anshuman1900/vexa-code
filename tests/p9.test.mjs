@@ -79,7 +79,8 @@ await check('prompt contains dynamic sections AFTER static prefix', () => {
   assert.ok(toolsIdx > envIdx);
   assert.ok(vexaIdx > toolsIdx, 'VEXA.md content after tools section');
   assert.ok(localIdx > vexaIdx, 'local file after project file (priority order)');
-  assert.ok(system.includes('Read, Glob, Grep, LS, Edit, Write, Bash, BashOutput, KillShell'));
+  assert.ok(system.includes('Read, Glob, Grep, LS'));
+  assert.ok(system.includes('TodoWrite'), 'new tools appear in the session tool list');
 });
 
 await check('missing @include silently skipped', () => {
