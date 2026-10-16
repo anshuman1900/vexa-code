@@ -13,7 +13,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch",
-    "test": "node tests/p2.test.mjs && node tests/p5.test.mjs && node tests/p6.test.mjs && node tests/p7.test.mjs && node tests/p8.test.mjs && node tests/p9.test.mjs && node tests/stage2.test.mjs && node tests/mcp.test.mjs",
+    "test": "node tests/p2.test.mjs && node tests/p5.test.mjs && node tests/p6.test.mjs && node tests/p7.test.mjs && node tests/p8.test.mjs && node tests/p9.test.mjs && node tests/stage2.test.mjs && node tests/mcp.test.mjs && node tests/p13.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

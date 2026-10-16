@@ -17,6 +17,7 @@ import { buildSystemPrompt } from '../engine/prompt.js';
 import { loadVexamd, type VexamdResult } from '../context/vexamd.js';
 import { runAgentTurn } from '../engine/queryLoop.js';
 import { getAllBaseTools } from '../tools/registry.js';
+import { createTaskTool } from '../tools/task.js';
 import type { Tool, ToolContext } from '../tools/types.js';
 import { appState, todoReminder, renderTodos } from '../state.js';
 import { evaluatePermission } from '../permissions/engine.js';
@@ -121,6 +122,7 @@ export async function runRepl(ctx: CliContext): Promise<void> {
     });
     return answer === 'y' || answer === 'yes';
   };
+
   appState.onTodosChanged = (todos) => {
     out.write(c.dim('┌─ todos\n') + todos.map((t) => c.dim('│ ') + (renderTodos([t]))).join('\n') + c.dim('\n└─\n'));
   };
@@ -236,20 +238,6 @@ export async function runRepl(ctx: CliContext): Promise<void> {
     // so kill -9 mid-turn still leaves the question on disk (P4 acceptance).
     await state.transcript.append(userMsg, { fsync: true });
 
-    const tools: Tool[] = [...getAllBaseTools().filter((t) => t.isEnabled()), ...state.mcpTools];
-    appState.mode = state.mode; // keep app state in sync (ExitPlanMode, todos)
-
-    const promptBuilt = buildSystemPrompt({
-      modelId: state.resolved.modelId,
-      modelLabel: state.resolved.profile.label ?? state.resolved.modelId,
-      cwd: process.cwd(),
-      isGitRepo: git,
-      toolsEnabled: tools.map((t) => t.name),
-      permissionMode: state.mode,
-      vexamd: sessionVexamd,
-    });
-    for (const w of promptBuilt.warnings) out.write(c.yellow(`  ⚠ ${w}\n`));
-    const system = promptBuilt.system;
 
     let key = '';
     try {
@@ -291,6 +279,41 @@ export async function runRepl(ctx: CliContext): Promise<void> {
       rl.resume();
       return answer === 'y' || answer === 'yes';
     };
+
+    const baseTools: Tool[] = [...getAllBaseTools().filter((t) => t.isEnabled()), ...state.mcpTools];
+    const tools: Tool[] = [
+      ...baseTools,
+      createTaskTool({
+        baseUrl: state.resolved.profile.baseUrl,
+        apiKey: key,
+        model: state.resolved.modelId,
+        label: state.resolved.profileName,
+        headers: state.resolved.profile.headers,
+        maxTokens: state.resolved.profile.maxTokens,
+        maxTokensParam: state.resolved.profile.maxTokensParam,
+        temperature: state.resolved.profile.temperature,
+        supports: state.resolved.profile.supports,
+        dropFields: state.resolved.profile.dropFields,
+        parentTools: baseTools,
+        parentPermissionAsk: askPermission,
+        cwd: process.cwd(),
+        maxTurns: Math.min(ctx.flags.maxTurns ?? 200, 60),
+        signal: abort.signal,
+      }),
+    ];
+    appState.mode = state.mode; // keep app state in sync (ExitPlanMode, todos)
+
+    const promptBuilt = buildSystemPrompt({
+      modelId: state.resolved.modelId,
+      modelLabel: state.resolved.profile.label ?? state.resolved.modelId,
+      cwd: process.cwd(),
+      isGitRepo: git,
+      toolsEnabled: tools.map((t) => t.name),
+      permissionMode: state.mode,
+      vexamd: sessionVexamd,
+    });
+    for (const w of promptBuilt.warnings) out.write(c.yellow(`  ⚠ ${w}\n`));
+    const system = promptBuilt.system;
 
     // Esc interrupts the stream, like Claude Code (raw-mode keypress during turn)
     const wasRaw = process.stdin.isRaw === true;
