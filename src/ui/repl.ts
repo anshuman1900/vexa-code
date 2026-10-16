@@ -18,6 +18,7 @@ import { loadVexamd, type VexamdResult } from '../context/vexamd.js';
 import { runAgentTurn } from '../engine/queryLoop.js';
 import { getAllBaseTools } from '../tools/registry.js';
 import { createTaskTool } from '../tools/task.js';
+import { createCheckpointer, type Checkpointer } from '../sessions/checkpoints.js';
 import type { Tool, ToolContext } from '../tools/types.js';
 import { appState, todoReminder, renderTodos } from '../state.js';
 import { evaluatePermission } from '../permissions/engine.js';
@@ -116,6 +117,14 @@ export async function runRepl(ctx: CliContext): Promise<void> {
   const git = await isGitRepo(process.cwd());
   const sessionVexamd: VexamdResult = loadVexamd(process.cwd()); // memoized per session [CX §2]
   let compactFailures = 0; // circuit breaker [CX §1.1]
+  let checkpointer: Checkpointer | null = null;
+  const ensureCheckpointer = (): Checkpointer => {
+    if (checkpointer === null) checkpointer = createCheckpointer(state.sessionId, process.cwd());
+    return checkpointer;
+  };
+  appState.webSearch = ctx.settings.webSearch !== undefined
+    ? { provider: ctx.settings.webSearch.provider, apiKeyEnv: ctx.settings.webSearch.apiKeyEnv }
+    : undefined;
   const memoryDir = ensureMemoryDir(process.cwd());
   const memory = loadMemory(process.cwd());
   const skills = discoverSkills(process.cwd());
@@ -278,6 +287,7 @@ export async function runRepl(ctx: CliContext): Promise<void> {
       abortController: abort,
       readFileState,
       cwd: process.cwd(),
+      checkpoint: (fp, prior) => ensureCheckpointer().save(fp, prior),
     };
 
     const askPermission = async (tool: Tool, input: unknown): Promise<boolean> => {
@@ -544,6 +554,7 @@ export async function runRepl(ctx: CliContext): Promise<void> {
         state.totalUsage = { ...EMPTY_USAGE };
         state.sessionId = newSessionId();
         state.transcript = new Transcript(transcriptPathFor(process.cwd(), state.sessionId), state.sessionId, ctx.version);
+        checkpointer = null;
         out.write(c.dim('✓ conversation cleared (new session started)\n'));
         return 'handled';
       case '/resume': {
@@ -564,6 +575,7 @@ export async function runRepl(ctx: CliContext): Promise<void> {
         state.messages = messages;
         state.sessionId = sessionId ?? target.id;
         state.transcript = new Transcript(transcriptPathFor(process.cwd(), state.sessionId), state.sessionId, ctx.version);
+        checkpointer = null;
         state.totalUsage = { ...EMPTY_USAGE };
         for (const m of state.messages) {
           if (m.usage !== undefined && m.usage.estimated === false) state.totalUsage = addUsage(state.totalUsage, m.usage);
@@ -706,6 +718,22 @@ export async function runRepl(ctx: CliContext): Promise<void> {
         for (const mc of state.mcpClients) {
           out.write(c.dim(`  ${mc.serverName}: ${mc.status} — ${mc.serverInfo.name ?? '?'} v${mc.serverInfo.version ?? '?'}\n`));
         }
+        return 'handled';
+      }
+      case '/rewind': {
+        const cp = ensureCheckpointer();
+        if (line.trim().endsWith('list') || line.trim() === '/rewind') {
+          const all = cp.list();
+          if (all.length === 0) { out.write(c.dim('no checkpoints yet — they are created before every Edit/Write\n')); return 'handled'; }
+          out.write(c.dim(all.slice(-8).map((e) => `  #${e.n}  ${new Date(e.timestamp).toLocaleTimeString()}  ${e.filePath}`).join('\n') + '\n'));
+          out.write(c.dim('  restore: /rewind <n>\n'));
+          return 'handled';
+        }
+        const n = Number(line.trim().split(/\s+/)[1] ?? NaN);
+        const r = cp.restore(Number.isInteger(n) ? n : undefined);
+        if (r === null) { out.write(errorLine('checkpoint not found') + '\n'); return 'handled'; }
+        out.write(successLine(`restored ${r.entry.filePath} (${r.restoredBytes} bytes) from checkpoint #${r.entry.n}`) + '\n');
+        readFileState.delete(r.entry.filePath); // force re-Read before next edit
         return 'handled';
       }
       case '/quit':

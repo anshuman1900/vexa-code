@@ -167,6 +167,7 @@ export const editTool: Tool<EditInput> = {
     }
 
     const patch = makePatch(original, newContent);
+    ctx.checkpoint?.(filePath, original);
     fs.writeFileSync(filePath, newContent);
     ctx.readFileState.set(filePath, { mtimeMs: fs.statSync(filePath).mtimeMs });
     return { data: `${normalized ? '[quote-normalized] ' : ''}Edited ${filePath}:\n${patch}` };

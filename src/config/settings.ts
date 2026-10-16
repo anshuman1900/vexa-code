@@ -38,6 +38,8 @@ export interface Settings {
   permissions: Permissions;
   env: Record<string, string>;
   autoCompactEnabled: boolean;
+  /** WebSearch provider config (P16); key comes from the named env var */
+  webSearch?: { provider: 'tavily' | 'brave'; apiKeyEnv: string };
   summaryModel?: string;
   appendSystemPrompt?: string;
   mcpServers?: Record<string, { command?: string; args?: string[]; env?: Record<string, string>; url?: string; type?: string }>;

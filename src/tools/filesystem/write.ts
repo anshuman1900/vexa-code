@@ -42,6 +42,7 @@ export const writeTool: Tool<WriteInput> = {
       throw new Error(`File has not been read yet. Read it first before writing to it (${filePath}).`);
     }
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    if (exists) ctx.checkpoint?.(filePath, fs.readFileSync(filePath, 'utf8'));
     const tmp = filePath + '.vexa-tmp-' + Date.now();
     fs.writeFileSync(tmp, input.content);
     fs.renameSync(tmp, filePath);

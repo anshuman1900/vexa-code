@@ -9,6 +9,8 @@ export interface ToolContext {
   cwd: string;
   appId?: string;
   agentId?: string;
+  /** shadow-copy prior content before a destructive write (P16 checkpoints) */
+  checkpoint?: (filePath: string, priorContent: string) => void;
 }
 
 export interface ToolResult<T = unknown> {

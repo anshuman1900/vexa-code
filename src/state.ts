@@ -13,6 +13,8 @@ export interface Todo {
 export interface AppState {
   todos: Todo[];
   mode: 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions';
+  webSearch?: { provider: 'tavily' | 'brave'; apiKeyEnv: string };
+  checkpoint?: (filePath: string, priorContent: string) => void;
   /** set by the REPL — ExitPlanMode uses it to run the approval dialog */
   planApproval?: (plan: string) => Promise<boolean>;
   /** called by the REPL whenever todos change (to re-render) */
