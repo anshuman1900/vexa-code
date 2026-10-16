@@ -5340,44 +5340,37 @@ async function runProviders(argv) {
 }
 
 // ../dist/version.js
-var VERSION = "0.1.0";
+var VERSION = "1.0.0";
 
 // ../dist/cli.js
 var HELP_TEXT = `vexa \u2014 a coding agent for your terminal. Any model. Any provider.
 
 USAGE
-  vexa [flags] [prompt...]
+  vexa                        interactive REPL
+  vexa "prompt"               run one prompt in the REPL
+  vexa -p "prompt"            headless: print the answer and exit
+  vexa providers ...          manage provider profiles
+  vexa --gui                  desktop bridge (used by the Vexa Code app)
 
 FLAGS
-  -p, --print          Headless mode: answer the prompt and exit (lands in P17)
-      --model <ref>    Model override: alias, "profile:model", or bare model id
-      --settings <f>   Extra settings file, merged at highest priority
-      --add-dir <dir>  Additional working directory (repeatable)
-      --max-turns <n>  Agent loop turn budget (default: 200)
-  -h, --help           Show this help
-      --version        Show version
-
-CONFIG
-  User settings   ~/.vexa/config.json
-  Project         .vexa/settings.json (checked in) + .vexa/settings.local.json
-  API keys        env vars referenced by providerProfiles.<name>.apiKeyEnv,
-                  or ~/.vexa/auth.json via: echo <key> | vexa providers set-key <profile>
-
-PROVIDERS
-  vexa providers list            presets (OpenRouter, Groq, Gemini, Mistral,
-                                 Cerebras, GitHub Models, NVIDIA, HF, Z.AI,
-                                 DeepSeek, Together, Ollama, LM Studio, vLLM)
-                                 + your profiles
-  vexa providers add groq        one-command setup from a preset
-  vexa providers add myapi --base-url https://host/v1 --model m --api-key-env MY_KEY
-  vexa providers set-key <name>  store a key in ~/.vexa/auth.json (0600)
-  vexa providers test <name>     GET /models with the resolved key
-  vexa providers remove <name>
+  -p, --print            headless one-shot (VEXA_OUTPUT_FORMAT=json for JSON)
+      --gui              stdio line-JSON bridge for the desktop app
+      --model <ref>      provider profile name or alias (default profile if omitted)
+      --settings <file>  extra settings file (lowest priority wins per key)
+      --add-dir <dir>    grant access to an extra working directory
+      --max-turns <n>    agent turn budget
+      --resume [id]      resume session (most recent if no id given)
+  -h, --help             show this help
+      --version          show version
 
 EXAMPLES
-  vexa                        start an interactive session
-  vexa --model fast           start with the "fast" alias model
-  vexa -p "summarize TODOs"   one-shot headless run (P17)
+  vexa                                   start coding
+  vexa --model nvidia                    use the "nvidia" provider profile
+  vexa -p "summarize TODOs"              one-shot answer
+  VEXA_OUTPUT_FORMAT=json vexa -p "..."  machine-readable output
+  vexa --resume                          continue your last session
+
+Inside the REPL: /help for slash commands (/sessions /rewind /model /mcp \u2026).
 `;
 function parseCliFlags() {
   const argv = process.argv.slice(2).map((a) => a === "--resume" ? "--resume=" : a);
@@ -5466,6 +5459,15 @@ async function main() {
   const { startRepl: startRepl2 } = await Promise.resolve().then(() => (init_repl2(), repl_exports));
   await startRepl2(ctx);
 }
+process.on("unhandledRejection", (reason) => {
+  process.stderr.write(`vexa: unexpected async error: ${reason instanceof Error ? reason.message : String(reason)}
+`);
+});
+process.on("uncaughtException", (err) => {
+  process.stderr.write(`vexa: fatal: ${err.message}
+`);
+  process.exit(1);
+});
 main().catch((err) => {
   if (err instanceof ConfigError) {
     fail2(`invalid settings

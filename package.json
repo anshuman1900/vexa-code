@@ -1,6 +1,6 @@
 {
   "name": "vexa-code",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Clean, simple, feature-rich coding agent for your terminal. Any model. Any provider.",
   "type": "module",
   "license": "MIT",

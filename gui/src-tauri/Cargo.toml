@@ -1,6 +1,6 @@
 [package]
 name = "vexa-gui"
-version = "0.1.0"
+version = "1.0.0"
 description = "Vexa Code desktop"
 edition = "2021"
 
