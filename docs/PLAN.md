@@ -57,5 +57,5 @@
 - [x] Plan locked (2026-10-16)
 - [x] P0.1 GitHub harvest — ✅ DONE (3 repos, 2 prompt generations, 16 tool schemas, 1,884-file deobfuscated source)
 - [x] P0.2 source study — ✅ DONE (4 docs: agent loop/provider, tools/permissions/hooks, context/MCP/extensibility + P0.1 harvest; all cited to source)
-- [~] P0.3 Spec doc — IN PROGRESS (synthesis into docs/SPEC.md)
+- [x] P0.3 Spec doc — ✅ DONE (docs/SPEC.md: 640 lines, architecture + P1–P26 specs + OpenAI adaptation table + data structures + prompt plan + open decisions)
 - [x] P0.4 Eval corpus — ✅ DONE (46 items, 12 categories, ★ hard gates; docs/research/P0.4-eval-corpus.md)
