@@ -19,7 +19,7 @@ import { ensureMemoryDir, loadMemory } from '../context/memory.js';
 import { discoverSkills, skillsPromptSection } from '../extensibility/skills.js';
 import { buildSystemPrompt } from '../engine/prompt.js';
 import { runAgentTurn } from '../engine/queryLoop.js';
-import { Transcript, newSessionId, transcriptPathFor } from '../sessions/transcript.js';
+import { Transcript, newSessionId, transcriptPathFor, sessionSummaries, readTranscript } from '../sessions/transcript.js';
 import { appState } from '../state.js';
 import { getAllBaseTools } from '../tools/registry.js';
 import { createTaskTool } from '../tools/task.js';
@@ -156,6 +156,39 @@ export function runGuiBridge(ctx: CliContext): void {
     if (cmd.type === 'interrupt') {
       interruptRequested = true;
       currentAbort?.abort();
+      return;
+    }
+    if (cmd.type === 'list_sessions') {
+      const sums = sessionSummaries(process.cwd(), 30).map((sm) => ({
+        id: sm.id, mtimeMs: sm.mtimeMs, msgCount: sm.msgCount, firstPrompt: sm.firstPrompt,
+      }));
+      send({ type: 'sessions', sessions: sums });
+      return;
+    }
+    if (cmd.type === 'open_session') {
+      const id = typeof cmd['id'] === 'string' ? cmd['id'] : '';
+      const target = sessionSummaries(process.cwd(), 30).find((sm) => sm.id === id || sm.id.startsWith(id));
+      if (target === undefined) {
+        send({ type: 'error', message: `no session matching "${id}"` });
+        return;
+      }
+      const { messages, sessionId: loadedId } = readTranscript(target.path);
+      sessionId = loadedId ?? target.id;
+      transcript = new Transcript(transcriptPathFor(process.cwd(), sessionId), sessionId, ctx.version);
+      // replay history into the UI
+      for (const m of messages) {
+        const role = m.type === 'user' ? 'user' : 'assistant';
+        const texts = m.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join('\n');
+        if (texts !== '') send({ type: 'history_message', role, text: texts });
+        else if (m.type === 'assistant') {
+          const calls = m.content.filter((b) => b.type === 'tool_use');
+          for (const c of calls) {
+            const tc = c as { name?: string; input?: unknown };
+            send({ type: 'tool_use', name: tc.name ?? 'tool', input: tc.input ?? null });
+          }
+        }
+      }
+      send({ type: 'session_opened', session_id: sessionId });
       return;
     }
     if (cmd.type === 'new_session') {
